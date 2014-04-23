@@ -6,16 +6,28 @@
 #include "data_types.h"
 
 using namespace std;
-using user_type = unsigned;
-using movie_type = unsigned short;
-using time_type = unsigned short;
-using rating_type = unsigned char;
 
 data_point* get_data_from_line(string line);
+void write_binary_data();
+void get_means();
 
 int main()
 {
 
+}
+
+// This function must be called after write_binary_data is called. It will 
+//	create a binary file of user average ratings and a binary file of 
+//	movie average ratings.
+void get_means()
+{
+
+}
+
+// This function takes the data and transforms it from the netflix format into a binary format
+//	which is easier to work with
+void write_binary_data()
+{
 	string data_line, idx_line;
 	data_point* data;
 	int i = 0;

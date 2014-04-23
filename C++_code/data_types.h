@@ -18,5 +18,9 @@ struct data_point
 	rating_type rating;
 };
 
+#define NUM_USERS 458293
+#define NUM_MOVIES 17710
+#define NUM_DATES 2243
+
 #endif
 
