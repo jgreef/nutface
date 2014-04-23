@@ -3,20 +3,13 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include "data_types.h"
 
 using namespace std;
 using user_type = unsigned;
 using movie_type = unsigned short;
 using time_type = unsigned short;
 using rating_type = unsigned char;
-
-struct data_point
-{	
-	user_type user;
-	movie_type movie;
-	time_type timestamp;
-	rating_type rating;
-};
 
 data_point* get_data_from_line(string line);
 
