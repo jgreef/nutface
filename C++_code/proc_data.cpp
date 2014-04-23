@@ -9,19 +9,12 @@ using namespace std;
 
 data_point* get_data_from_line(string line);
 void write_binary_data();
-void get_means();
 
 int main()
 {
+	write_binary_data();
 
-}
-
-// This function must be called after write_binary_data is called. It will 
-//	create a binary file of user average ratings and a binary file of 
-//	movie average ratings.
-void get_means()
-{
-
+	return 0;
 }
 
 // This function takes the data and transforms it from the netflix format into a binary format
@@ -135,8 +128,7 @@ void write_binary_data()
 	    um_data.close();
 	    um_idx.close();
 	}
-
-    return 0;
+	
 }
 
 // This function puts the line data into a struct and 
