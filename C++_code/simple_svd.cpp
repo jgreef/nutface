@@ -22,6 +22,12 @@ using namespace std;
 #define LEARNING_RATE 0.002
 #define REGULARIZATION_RATE 0.04
 #define NUM_EPOCHS 200
+
+//
+// TODO: Actually compute this value and
+//	see if it helps. The error is higher than it 
+//	should be by using this predefined value
+//
 #define MOVIE_AVG 3.7
 
 // Declare the feature vectors for SVD
