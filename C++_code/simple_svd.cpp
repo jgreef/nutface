@@ -17,7 +17,6 @@ using namespace std;
 
 // Define the number of features in the SVD
 #define NUM_FEATURES 200
-#define REGULARIZATION_RATE 0.01
 
 // Define the learning rate
 #define LEARNING_RATE 0.001
@@ -104,6 +103,7 @@ int main()
 
 	// And need to free the data
 	free_data(TRAIN_MU);
+	free_data(PROBE_MU);
 	free_data(VALID_MU);
 	free_data(QUAL_MU);
 
@@ -127,8 +127,8 @@ static inline void svd_train(user_type user, movie_type movie, rating_type ratin
 		temp_user = user_features[user - 1][i];
 		temp_movie = movie_features[movie - 1][i];
 		// Don't forget to account for zero-indexing
-		user_features[user - 1][i] += (error*temp_movie - REGULARIZATION_RATE*temp_movie);
-		movie_features[movie - 1][i] += (error*temp_user - REGULARIZATION_RATE*temp_user);
+		user_features[user - 1][i] += (error*temp_movie);
+		movie_features[movie - 1][i] += (error*temp_user);
 	}
 
 }
