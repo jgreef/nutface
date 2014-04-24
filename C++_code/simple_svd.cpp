@@ -8,13 +8,16 @@
 #include <fstream>
 #include <time.h>
 #include <cmath>
+#include <numeric>
+// #include <parallel/numeric>
 #include "data_types.h"
 #include "data_io.h"
 
 using namespace std;
 
 // Define the number of features in the SVD
-#define NUM_FEATURES 40
+#define NUM_FEATURES 200
+#define REGULARIZATION_RATE 0.01
 
 // Define the learning rate
 #define LEARNING_RATE 0.001
@@ -67,7 +70,7 @@ int main()
 
 
 	// Loop until the old RMSE and new RMSE differ by about 0.001
-	while( (old_rmse - new_rmse) > 0.001)
+	while( old_rmse > new_rmse)
 	{
 
 		epochs++;
@@ -86,22 +89,23 @@ int main()
 			data++;
 		}
 
-		// Update the RMSE
-		old_rmse = new_rmse;
-		new_rmse = get_svd_rmse(VALID_MU);
-
 		// Figure out how long it took
 		time(&end_time);
 
 		cout << "epoch " << epochs << " completed in " << (end_time - begin_time) << " seconds" << endl;
-	}
 
-	// Now evaluate qual
-	get_qual(QUAL_MU);
+		// Update the RMSE
+		old_rmse = new_rmse;
+		new_rmse = get_svd_rmse(PROBE_MU);
+
+		// Now evaluate qual
+		get_qual(QUAL_MU);
+	}
 
 	// And need to free the data
 	free_data(TRAIN_MU);
 	free_data(VALID_MU);
+	free_data(QUAL_MU);
 
 	return 0;
 
@@ -112,7 +116,7 @@ int main()
 static inline void svd_train(user_type user, movie_type movie, rating_type rating)
 {
 	float error;
-	float temp_val;
+	float temp_user, temp_movie;
 
 	// Calculate the error
 	error = LEARNING_RATE*(rating - predict_rating(user, movie));
@@ -120,10 +124,11 @@ static inline void svd_train(user_type user, movie_type movie, rating_type ratin
 	for (int i = 0; i < NUM_FEATURES; i++)
 	{
 		// Adjust each of the features
-		temp_val = user_features[user - 1][i];
+		temp_user = user_features[user - 1][i];
+		temp_movie = movie_features[movie - 1][i];
 		// Don't forget to account for zero-indexing
-		user_features[user - 1][i] += error*movie_features[movie - 1][i];
-		movie_features[movie - 1][i] += error*temp_val;
+		user_features[user - 1][i] += (error*temp_movie - REGULARIZATION_RATE*temp_movie);
+		movie_features[movie - 1][i] += (error*temp_user - REGULARIZATION_RATE*temp_user);
 	}
 
 }
@@ -213,9 +218,6 @@ void get_qual(data_set_t dset)
 		// Increment the pointer
 		data++;
 	}
-
-	// Free the qual data
-	free_data(dset);
 
 }
 
