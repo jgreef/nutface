@@ -94,10 +94,10 @@ int main()
 		time(&end_time);
 
 		cout << "epoch " << epochs << " completed in " << (end_time - begin_time) << " seconds" << endl;
-
-		// Now evaluate qual
-		get_qual(QUAL_MU);
 	}
+
+	// Now evaluate qual
+	get_qual(QUAL_MU);
 
 	// And need to free the data
 	free_data(TRAIN_MU);
