@@ -19,7 +19,7 @@ struct data_point
 };
 
 #define NUM_USERS 458293
-#define NUM_MOVIES 17710
+#define NUM_MOVIES 17770
 #define NUM_DATES 2243
 
 enum data_set_t

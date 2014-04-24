@@ -16,16 +16,19 @@
 using namespace std;
 
 // Define the number of features in the SVD
-#define NUM_FEATURES 200
+#define NUM_FEATURES 50
 
 // Define the learning rate
 #define LEARNING_RATE 0.001
 #define REGULARIZATION_RATE 0.02
 #define NUM_EPOCHS 200
+#define MOVIE_AVG 3.7
 
 // Declare the feature vectors for SVD
 float movie_features[NUM_MOVIES][NUM_FEATURES];
 float user_features[NUM_USERS][NUM_FEATURES];
+float user_bias[NUM_USERS];
+float movie_bias[NUM_MOVIES];
 
 // Function declarations
 static inline void svd_train(user_type user, movie_type movie, rating_type rating);
@@ -37,8 +40,7 @@ int main()
 {
 	time_t begin_time, end_time;
 	double seconds;
-	float old_rmse = 100.0;
-	float new_rmse = 50.0;
+	float probe_rmse, train_rmse, valid_rmse;
 	int epochs = 0;
 	unsigned data_points;
 	int j, k;
@@ -49,6 +51,8 @@ int main()
 	// Need to initialize the movie and user feature vectors
 	for (j = 0; j < NUM_MOVIES; j++)
 	{
+		movie_bias[j] = 0;
+
 		for (k = 0; k < NUM_FEATURES; k++)
 		{
 			movie_features[j][k] = 0.1;
@@ -56,11 +60,16 @@ int main()
 	}
 	for (j = 0; j < NUM_USERS; j++)
 	{
+		user_bias[j] = 0;
+
 		for (k = 0; k < NUM_FEATURES; k++)
 		{
 			user_features[j][k] = 0.1;
 		}
 	}
+
+	// Open the output RMSE file
+	ofstream out_rmse ("../../../data/solutions/simple_svd_rmse.csv", ios::trunc);
 
 	// Need to initialize the data io
 	init_data_io();
@@ -93,19 +102,22 @@ int main()
 		// Figure out how long it took
 		time(&end_time);
 
+
 		cout << "epoch " << epochs << " completed in " << (end_time - begin_time) << " seconds" << endl;
 
-		// Update the RMSE
-		old_rmse = new_rmse;
-		new_rmse = get_svd_rmse(PROBE_MU);
+		// Update the RMSEs
+		train_rmse = get_svd_rmse(TRAIN_MU);
+		valid_rmse = get_svd_rmse(VALID_MU);
+		probe_rmse = get_svd_rmse(PROBE_MU);
+		// And write them to file
+		out_rmse << train_rmse << "," << valid_rmse << "," << probe_rmse << endl;
 
-		// Now evaluate qual
+		// Now evaluate and write the new qual file
 		get_qual(QUAL_MU);
 	}
 
 	// And need to free the data
 	free_data(TRAIN_MU);
-	free_data(PROBE_MU);
 	free_data(VALID_MU);
 	free_data(QUAL_MU);
 
@@ -121,17 +133,23 @@ static inline void svd_train(user_type user, movie_type movie, rating_type ratin
 	float temp_user, temp_movie;
 
 	// Calculate the error
-	error = (rating - predict_rating(user, movie));
+	error = LEARNING_RATE*(rating - predict_rating(user, movie));
 
+	// Descend on each of the features
 	for (int i = 0; i < NUM_FEATURES; i++)
 	{
 		// Adjust each of the features
 		temp_user = user_features[user - 1][i];
 		temp_movie = movie_features[movie - 1][i];
 		// Don't forget to account for zero-indexing
-		user_features[user - 1][i] += LEARNING_RATE*(error*temp_movie - REGULARIZATION_RATE*temp_user);
-		movie_features[movie - 1][i] += LEARNING_RATE*(error*temp_user - REGULARIZATION_RATE*temp_movie);
+
+		user_features[user - 1][i] += error*temp_movie - LEARNING_RATE*REGULARIZATION_RATE*temp_user;
+		movie_features[movie - 1][i] += error*temp_user - LEARNING_RATE*REGULARIZATION_RATE*temp_movie;
 	}
+
+	// Descend on the user/movie biases
+	user_bias[user - 1] += error - LEARNING_RATE*REGULARIZATION_RATE*user_bias[user - 1];
+	movie_bias[movie - 1] += error - LEARNING_RATE*REGULARIZATION_RATE*movie_bias[movie - 1];
 
 }
 
@@ -139,41 +157,42 @@ static inline void svd_train(user_type user, movie_type movie, rating_type ratin
 //	product of the feature vectors
 static inline float predict_rating(user_type user, movie_type movie)
 {
-	float prediction = 0.0;
-	float ret_val;
+	float prediction = MOVIE_AVG;
 
-	for (int i = 0; i < NUM_FEATURES; i++)
+	for (int j = 0; j < NUM_FEATURES; j++)
 	{
 		// Don't forget to account for zero-indexing
-		prediction += movie_features[movie - 1][i]*user_features[user - 1][i];
+		prediction += movie_features[movie - 1][j]*user_features[user - 1][j];
 	}
 
-	ret_val = (prediction > 5) ? 5 : prediction;
-	ret_val = (prediction < 1) ? 1 : prediction;
+	// Add in the movie average and the movie and user biases
+	prediction += movie_bias[movie - 1] + user_bias[user - 1]; 
 
-	return ret_val;
+	// ret_val = (prediction > 5) ? 5 : prediction;
+	// ret_val = (prediction < 1) ? 1 : prediction;
+
+	return prediction;
 }
 
 // this function calculates the out-of-sample error on the passed dataset
 float get_svd_rmse(data_set_t dset)
 {
-	unsigned data_points;
+	unsigned num_points;
 	data_point* data;
-	float error, avg_sqerr;
+	float error, rmse;
 	time_t begin_time, end_time;
-	float rmse, sqerr;
 	float prediction;
 
 	// First, need to get the data
 	data = get_data(dset);
-	data_points = get_data_size(dset);
+	num_points = get_data_size(dset);
 
 	// Initialize the rmse
 	rmse = 0;
 
 	time(&begin_time);
 
-	for (int i = 0; i < data_points; i++)
+	for (int i = 0; i < num_points; i++)
 	{
 		// Calculate the error
 		error = data->rating - predict_rating(data->user, data->movie);;
@@ -182,11 +201,11 @@ float get_svd_rmse(data_set_t dset)
 	}
 
 	// Calculate the RMSE
-	rmse = sqrt(rmse/data_points);
+	rmse = sqrt(rmse/num_points);
 
 	time(&end_time);
 
-	cout << "RMSE of: " << rmse << ", took " << (end_time - begin_time) << " seconds" << endl;
+	cout << dset << " RMSE of: " << rmse << ", took " << (end_time - begin_time) << " seconds" << endl;
 
 	return rmse;
 }

@@ -100,6 +100,7 @@ data_point* get_data(data_set_t dtype)
 		// File didn't open for some reason
 		else
 		{
+			cout << "can't open desired file" << endl;
 			return NULL;
 		}
 
