@@ -20,6 +20,8 @@ using namespace std;
 
 // Define the learning rate
 #define LEARNING_RATE 0.001
+#define REGULARIZATION_RATE 0.02
+#define NUM_EPOCHS 200
 
 // Declare the feature vectors for SVD
 float movie_features[NUM_MOVIES][NUM_FEATURES];
@@ -69,7 +71,7 @@ int main()
 
 
 	// Loop until the old RMSE and new RMSE differ by about 0.001
-	while( old_rmse > new_rmse)
+	while( epochs < NUM_EPOCHS )
 	{
 
 		epochs++;
@@ -119,7 +121,7 @@ static inline void svd_train(user_type user, movie_type movie, rating_type ratin
 	float temp_user, temp_movie;
 
 	// Calculate the error
-	error = LEARNING_RATE*(rating - predict_rating(user, movie));
+	error = (rating - predict_rating(user, movie));
 
 	for (int i = 0; i < NUM_FEATURES; i++)
 	{
@@ -127,8 +129,8 @@ static inline void svd_train(user_type user, movie_type movie, rating_type ratin
 		temp_user = user_features[user - 1][i];
 		temp_movie = movie_features[movie - 1][i];
 		// Don't forget to account for zero-indexing
-		user_features[user - 1][i] += (error*temp_movie);
-		movie_features[movie - 1][i] += (error*temp_user);
+		user_features[user - 1][i] += LEARNING_RATE*(error*temp_movie - REGULARIZATION_RATE*temp_user);
+		movie_features[movie - 1][i] += LEARNING_RATE*(error*temp_user - REGULARIZATION_RATE*temp_movie);
 	}
 
 }
@@ -138,6 +140,7 @@ static inline void svd_train(user_type user, movie_type movie, rating_type ratin
 static inline float predict_rating(user_type user, movie_type movie)
 {
 	float prediction = 0.0;
+	float ret_val;
 
 	for (int i = 0; i < NUM_FEATURES; i++)
 	{
@@ -145,16 +148,10 @@ static inline float predict_rating(user_type user, movie_type movie)
 		prediction += movie_features[movie - 1][i]*user_features[user - 1][i];
 	}
 
-	// if (prediction > 5)
-	// {
-	// 	prediction  = 5;
-	// }
-	// if (prediction < 0)
-	// {
-	// 	prediction = 0;
-	// }
+	ret_val = (prediction > 5) ? 5 : prediction;
+	ret_val = (prediction < 1) ? 1 : prediction;
 
-	return prediction;
+	return ret_val;
 }
 
 // this function calculates the out-of-sample error on the passed dataset
