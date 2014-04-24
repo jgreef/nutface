@@ -22,5 +22,20 @@ struct data_point
 #define NUM_MOVIES 17710
 #define NUM_DATES 2243
 
+enum data_set_t
+{
+	TRAIN_MU,
+	VALID_MU, 
+	HIDDEN_MU,
+	PROBE_MU,
+	QUAL_MU,
+	TRAIN_UM,
+	VALID_UM, 
+	HIDDEN_UM,
+	PROBE_UM,
+	QUAL_UM,
+	NUM_DATA_SETS
+};
+
 #endif
 

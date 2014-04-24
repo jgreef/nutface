@@ -89,7 +89,15 @@ int main()
 	    	switch(type)
 	    	{
 	    		case TRAIN:
-	    			
+
+	    		case VALID:
+
+	    		case HIDDEN:
+
+	    		case PROBE:
+
+	    		case QUAL:
+
 	    	}
 
 	    	udata.user = data->user;

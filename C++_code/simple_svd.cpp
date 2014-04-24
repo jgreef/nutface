@@ -8,6 +8,7 @@
 #include <fstream>
 #include <time.h>
 #include "data_types.h"
+#include "data_io.h"
 
 using namespace std;
 
@@ -32,37 +33,20 @@ int main()
 	memset(movie_features, 1, NUM_FEATURES*NUM_MOVIES*sizeof(float)/sizeof(int));
 	memset(user_features, 1, NUM_FEATURES*NUM_USERS*sizeof(float)/sizeof(int));
 
-	// Determine the size of the training data
-	ifstream train_mu_data ("../../../data/mu/train.bin", ios::binary);
-	if (train_mu_data.is_open())
+	// Need to initialize the data io
+	init_data_io();
+
+	// Get the data and verify that it's about right
+	data = get_data(TRAIN_MU);
+	if (data == NULL)
 	{
-		train_mu_data.seekg(0, ios::end);
-		filesize = train_mu_data.tellg();
-		// Seeking back to the beginning helps
-		train_mu_data.seekg(0, ios::beg);
+		cout << "well shit" << endl;
 	}
 
-	// Now, need to allocate the space for the input data
-	train_data = (char *)malloc(filesize);
-
-	time(&begin);
-
-	// and read in the input data
-	train_mu_data.read(train_data, filesize);
-
-	time(&end);
-
-	// Report the elapsed time to read in the data
-	seconds = difftime(end, begin);
-
-	cout << seconds << " seconds elapsed to read data" << endl;
-
-	// And verify that the data seems about right
-	data = (data_point*)train_data;
 	cout << data->user << ";" << data->movie << ";" << data->timestamp << ";" << (int)data->rating << endl;
 
-	// Finally, free the malloc'd space
-	free(train_data);
+	// And need to free the data
+	free_data(TRAIN_MU);
 
 	return 0;
 
