@@ -99,19 +99,19 @@ void write_binary_data()
 
 	    	switch(idx_line[0])
 	    	{
-	    		case '0':
+	    		case '1':
 	    			um_train.write( (char*) data, sizeof(data_point));
 	    			break;
-	    		case '1':
+	    		case '2':
 	    			um_valid.write( (char*) data, sizeof(data_point));
 	    			break;
-	    		case '2':
+	    		case '3':
 	    			um_hidden.write( (char*) data, sizeof(data_point));
 	    			break;
-	    		case '3':
+	    		case '4':
 	    			um_probe.write( (char*) data, sizeof(data_point));
 	    			break;
-	    		case '4':
+	    		case '5':
 	    			um_qual.write( (char*) data, sizeof(data_point));
 	    			break;
 	    		default:
