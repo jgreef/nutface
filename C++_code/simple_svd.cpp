@@ -19,8 +19,8 @@ using namespace std;
 #define NUM_FEATURES 50
 
 // Define the learning rate
-#define LEARNING_RATE 0.001
-#define REGULARIZATION_RATE 0.02
+#define LEARNING_RATE 0.002
+#define REGULARIZATION_RATE 0.04
 #define NUM_EPOCHS 200
 #define MOVIE_AVG 3.7
 
@@ -42,11 +42,11 @@ int main()
 	double seconds;
 	float probe_rmse, train_rmse, valid_rmse;
 	int epochs = 0;
-	unsigned data_points;
+	unsigned data_train_points, data_probe_points;
 	int j, k;
 
 	data_point * data;
-	data_point * data_start;
+	data_point * data_train_start, *data_probe_start;
 
 	// Need to initialize the movie and user feature vectors
 	for (j = 0; j < NUM_MOVIES; j++)
@@ -74,9 +74,13 @@ int main()
 	// Need to initialize the data io
 	init_data_io();
 	// Get the data and verify that it's about right
-	data_start = get_data(TRAIN_MU);
+	data_train_start = get_data(TRAIN_MU);
 	// Get the size of the data
-	data_points = get_data_size(TRAIN_MU);
+	data_train_points = get_data_size(TRAIN_MU);
+
+	// Also need to get the probe data
+	data_probe_start = get_data(PROBE_MU);
+	data_probe_points = get_data_size(PROBE_MU);
 
 
 	// Loop until the old RMSE and new RMSE differ by about 0.001
@@ -88,10 +92,19 @@ int main()
 		// Initialize the timer
 		time(&begin_time);
 
-		// Initialize the data pointer
-		data = data_start;
+		// Train on the training set
+		data = data_train_start;
+		for (int i = 0; i < data_train_points; i++)
+		{
+			// Train
+			svd_train(data->user, data->movie, data->rating);
+			// Increment the pointer
+			data++;
+		}
 
-		for (int i = 0; i < data_points; i++)
+		// Train on Probe
+		data = data_probe_start;
+		for (int i = 0; i < data_probe_points; i++)
 		{
 			// Train
 			svd_train(data->user, data->movie, data->rating);
@@ -106,8 +119,8 @@ int main()
 		cout << "epoch " << epochs << " completed in " << (end_time - begin_time) << " seconds" << endl;
 
 		// Update the RMSEs
-		train_rmse = get_svd_rmse(TRAIN_MU);
-		valid_rmse = get_svd_rmse(VALID_MU);
+		// train_rmse = get_svd_rmse(TRAIN_MU);
+		// valid_rmse = get_svd_rmse(VALID_MU);
 		probe_rmse = get_svd_rmse(PROBE_MU);
 		// And write them to file
 		out_rmse << train_rmse << "," << valid_rmse << "," << probe_rmse << endl;
