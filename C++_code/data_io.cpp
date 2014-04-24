@@ -16,6 +16,8 @@ using namespace std;
 data_point* data_pointers[NUM_DATA_SETS];
 // Boolean array indicating whether or not the data is loaded
 bool data_loaded[NUM_DATA_SETS];
+// array of data set sizes
+unsigned data_size[NUM_DATA_SETS];
 
 // this function initializes all of the static variables. It MUST be called
 //	before doing anything else
@@ -25,6 +27,7 @@ void init_data_io()
 	{
 		data_pointers[i] = NULL;
 		data_loaded[i] = false;
+		data_size[i] = 0;
 	}
 }
 
@@ -82,6 +85,8 @@ data_point* get_data(data_set_t dtype)
 			data_file.seekg(0, ios::end);
 			// Get the size
 			filesize = data_file.tellg();
+			// Store the size
+			data_size[dtype] = (filesize / sizeof(data_point));
 			// Seek back to the beginning
 			data_file.seekg(0, ios::beg);
 			// Allocate the buffer for the file and assign the pointer
@@ -105,6 +110,12 @@ data_point* get_data(data_set_t dtype)
 
 }
 
+// This function returns the number of data points in any data set
+unsigned get_data_size(data_set_t dtype)
+{
+	return data_size[dtype];
+}
+
 // This function frees a dataset
 void free_data(data_set_t dtype)
 {
@@ -115,5 +126,6 @@ void free_data(data_set_t dtype)
 		free(data_pointers[dtype]);
 		data_pointers[dtype] = NULL;
 		data_loaded[dtype] = false;
+		data_size[dtype] = 0;
 	}
 }
