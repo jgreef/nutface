@@ -1,6 +1,6 @@
 //
 //
-// This file performs a simple version of SVD for predicting 
+// This file performs a simple version of SVD for predicting
 //
 
 #include <iostream>
@@ -20,15 +20,12 @@ using namespace std;
 
 // Define the learning rate
 #define LEARNING_RATE 0.002
-#define REGULARIZATION_RATE 0.04
-#define NUM_EPOCHS 200
+#define NUM_EPOCHS 30
 
-//
-// TODO: Actually compute this value and
-//	see if it helps. The error is higher than it 
-//	should be by using this predefined value
-//
-#define MOVIE_AVG 3.7
+// Define the regularization rate. This will change after each epoch.
+float regularization_rate = 0.04;
+
+#define MOVIE_AVG 3.60861
 
 // Declare the feature vectors for SVD
 float movie_features[NUM_MOVIES][NUM_FEATURES];
@@ -108,6 +105,7 @@ int main()
 			data++;
 		}
 
+
 		// Train on Probe
 		data = data_probe_start;
 		for (int i = 0; i < data_probe_points; i++)
@@ -121,7 +119,6 @@ int main()
 		// Figure out how long it took
 		time(&end_time);
 
-
 		cout << "epoch " << epochs << " completed in " << (end_time - begin_time) << " seconds" << endl;
 
 		// Update the RMSEs
@@ -130,6 +127,9 @@ int main()
 		probe_rmse = get_svd_rmse(PROBE_MU);
 		// And write them to file
 		out_rmse << train_rmse << "," << valid_rmse << "," << probe_rmse << endl;
+
+        // Update regularization rate
+        regularization_rate *= 0.9;
 
 		// Now evaluate and write the new qual file
 		get_qual(QUAL_MU);
@@ -144,15 +144,16 @@ int main()
 
 }
 
-// This funciont is to be called on a point in the data set to train 
+// This funciont is to be called on a point in the data set to train
 //	all of the features on one point
 static inline void svd_train(user_type user, movie_type movie, rating_type rating)
 {
-	float error;
+	float error, adjustment_term;
 	float temp_user, temp_movie;
 
 	// Calculate the error
 	error = LEARNING_RATE*(rating - predict_rating(user, movie));
+    adjustment_term =  LEARNING_RATE*regularization_rate;
 
 	// Descend on each of the features
 	for (int i = 0; i < NUM_FEATURES; i++)
@@ -162,17 +163,17 @@ static inline void svd_train(user_type user, movie_type movie, rating_type ratin
 		temp_movie = movie_features[movie - 1][i];
 		// Don't forget to account for zero-indexing
 
-		user_features[user - 1][i] += error*temp_movie - LEARNING_RATE*REGULARIZATION_RATE*temp_user;
-		movie_features[movie - 1][i] += error*temp_user - LEARNING_RATE*REGULARIZATION_RATE*temp_movie;
+		user_features[user - 1][i] += error*temp_movie - adjustment_term*temp_user;
+		movie_features[movie - 1][i] += error*temp_user - adjustment_term*temp_movie;
 	}
 
 	// Descend on the user/movie biases
-	user_bias[user - 1] += error - LEARNING_RATE*REGULARIZATION_RATE*user_bias[user - 1];
-	movie_bias[movie - 1] += error - LEARNING_RATE*REGULARIZATION_RATE*movie_bias[movie - 1];
+	user_bias[user - 1] += error - adjustment_term*user_bias[user - 1];
+	movie_bias[movie - 1] += error - adjustment_term*movie_bias[movie - 1];
 
 }
 
-// this function will predict a rating for a user and movie by doing the inner 
+// this function will predict a rating for a user and movie by doing the inner
 //	product of the feature vectors
 static inline float predict_rating(user_type user, movie_type movie)
 {
@@ -185,7 +186,7 @@ static inline float predict_rating(user_type user, movie_type movie)
 	}
 
 	// Add in the movie average and the movie and user biases
-	prediction += movie_bias[movie - 1] + user_bias[user - 1]; 
+	prediction += movie_bias[movie - 1] + user_bias[user - 1];
 
 	// ret_val = (prediction > 5) ? 5 : prediction;
 	// ret_val = (prediction < 1) ? 1 : prediction;
