@@ -28,9 +28,11 @@ float regularization_rate = 0.04;
 // average score across all movies in train
 #define MOVIE_AVG 3.60861
 
+// Bound the feature vectors by these values
 #define MIN_FEATURE_START -0.1
 #define MAX_FEATURE_START 0.1
 
+// Constant for calculating user/movie bias
 #define BIAS_CONSTANT 25
 
 // Declare the feature vectors for SVD
@@ -277,27 +279,33 @@ void get_qual(data_set_t dset)
 
 }
 
+// This function initializes the bias vectors for users and movies. It's called once.
 void init_bias_vectors(data_point * train_start, unsigned train_points)
 {
 
     data_point * data = train_start;
+
+    // Vectors to keep track of how many movies/users, and the total ratings of
+    // movies/users
     int movie_num[NUM_MOVIES];
     int movie_rating_sum[NUM_MOVIES];
     int user_num[NUM_USERS];
     int user_rating_sum[NUM_USERS];
 
+    // Initialize movie and user vectors
     for (int i = 0; i < NUM_MOVIES; i++)
     {
         movie_num[i] = 0;
         movie_rating_sum[i] = 0;
     }
-
     for (int i = 0; i < NUM_USERS; i++)
     {
         user_num[i] = 0;
         user_rating_sum[i] = 0;
     }
 
+    // Run through each data point, updating the number of users/movies that
+    // rated it, as well as the user/movie total sum.
     for (int i = 0; i < train_points; i++)
     {
         movie_num[(data->movie)-1] += 1;
@@ -309,8 +317,9 @@ void init_bias_vectors(data_point * train_start, unsigned train_points)
         data++;
     }
 
-    // For each movie, calculate the movie bias. This is the average rating for
-    // a movie (NOT the movie's average rating), minus the movie's average rating.
+    // For each movie/user, calculate the bias. This is the average rating for
+    // the movie/user (NOT the movie/users's average rating), minus the average
+    // rating. Formulas found from the funny article (BetterMean).
     for (int i = 0; i < NUM_MOVIES; i++) {
 
         movie_bias[i] = ((MOVIE_AVG * BIAS_CONSTANT + movie_rating_sum[i])/(BIAS_CONSTANT + movie_num[i])) - MOVIE_AVG;
