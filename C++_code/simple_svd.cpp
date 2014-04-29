@@ -22,8 +22,7 @@ using namespace std;
 #define LEARNING_RATE 0.002
 #define NUM_EPOCHS 60
 
-// Define the regularization rate. This will change after each epoch.
-//float regularization_rate = 0.04;
+// Define the regularization rate.
 float regularization_rate = 0.02;
 
 #define MOVIE_AVG 3.60861
