@@ -22,10 +22,19 @@ using namespace std;
 #define LEARNING_RATE 0.002
 #define NUM_EPOCHS 60
 
+<<<<<<< Updated upstream
 // Define the regularization rate.
 float regularization_rate = 0.02;
 
 #define MOVIE_AVG 3.60861
+=======
+//
+// TODO: Actually compute this value and
+//	see if it helps. The error is higher than it 
+//	should be by using this predefined value
+//
+#define MOVIE_AVG 3.6095
+>>>>>>> Stashed changes
 
 // Declare the feature vectors for SVD
 float movie_features[NUM_MOVIES][NUM_FEATURES];
