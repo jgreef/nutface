@@ -16,14 +16,15 @@
 using namespace std;
 
 // Define the number of features in the SVD
-#define NUM_FEATURES 50
+#define NUM_FEATURES 40
 
 // Define the learning rate
 #define LEARNING_RATE 0.002
-#define NUM_EPOCHS 30
+#define NUM_EPOCHS 60
 
 // Define the regularization rate. This will change after each epoch.
-float regularization_rate = 0.04;
+//float regularization_rate = 0.04;
+float regularization_rate = 0.02;
 
 #define MOVIE_AVG 3.60861
 
@@ -129,7 +130,7 @@ int main()
 		out_rmse << train_rmse << "," << valid_rmse << "," << probe_rmse << endl;
 
         // Update regularization rate
-        regularization_rate *= 0.9;
+        //regularization_rate *= 0.9;
 
 		// Now evaluate and write the new qual file
 		get_qual(QUAL_MU);
@@ -150,6 +151,7 @@ static inline void svd_train(user_type user, movie_type movie, rating_type ratin
 {
 	float error, adjustment_term;
 	float temp_user, temp_movie;
+    float temp_user_bias, temp_movie_bias;
 
 	// Calculate the error
 	error = LEARNING_RATE*(rating - predict_rating(user, movie));
@@ -171,6 +173,12 @@ static inline void svd_train(user_type user, movie_type movie, rating_type ratin
 	user_bias[user - 1] += error - adjustment_term*user_bias[user - 1];
 	movie_bias[movie - 1] += error - adjustment_term*movie_bias[movie - 1];
 
+    //temp_user_bias = user_bias[user - 1];
+    //temp_movie_bias = movie_bias[movie - 1];
+
+    //user_bias[user - 1] += error - LEARNING_RATE*0.05*(temp_user_bias + temp_movie_bias);
+    //movie_bias[movie - 1] += error - LEARNING_RATE*0.05*(temp_user_bias + temp_movie_bias);
+
 }
 
 // this function will predict a rating for a user and movie by doing the inner
@@ -188,10 +196,11 @@ static inline float predict_rating(user_type user, movie_type movie)
 	// Add in the movie average and the movie and user biases
 	prediction += movie_bias[movie - 1] + user_bias[user - 1];
 
-	// ret_val = (prediction > 5) ? 5 : prediction;
-	// ret_val = (prediction < 1) ? 1 : prediction;
+	float ret_val = (prediction > 5) ? 5 : prediction;
+	ret_val = (prediction < 1) ? 1 : ret_val;
 
-	return prediction;
+	//return prediction;
+    return ret_val;
 }
 
 // this function calculates the out-of-sample error on the passed dataset

@@ -11,7 +11,7 @@ typedef unsigned short time_type;
 typedef unsigned char  rating_type;
 
 struct data_point
-{	
+{
 	user_type user;
 	movie_type movie;
 	time_type timestamp;
@@ -25,12 +25,12 @@ struct data_point
 enum data_set_t
 {
 	TRAIN_MU,
-	VALID_MU, 
+	VALID_MU,
 	HIDDEN_MU,
 	PROBE_MU,
 	QUAL_MU,
 	TRAIN_UM,
-	VALID_UM, 
+	VALID_UM,
 	HIDDEN_UM,
 	PROBE_UM,
 	QUAL_UM,
