@@ -16,16 +16,22 @@
 using namespace std;
 
 // Define the number of features in the SVD
-#define NUM_FEATURES 40
+#define NUM_FEATURES 50
 
 // Define the learning rate
 #define LEARNING_RATE 0.002
 #define NUM_EPOCHS 60
 
 // Define the regularization rate.
-float regularization_rate = 0.02;
+float regularization_rate = 0.04;
 
+// average score across all movies in train
 #define MOVIE_AVG 3.60861
+
+#define MIN_FEATURE_START -0.1
+#define MAX_FEATURE_START 0.1
+
+#define BIAS_CONSTANT 25
 
 // Declare the feature vectors for SVD
 float movie_features[NUM_MOVIES][NUM_FEATURES];
@@ -38,6 +44,7 @@ static inline void svd_train(user_type user, movie_type movie, rating_type ratin
 static inline float predict_rating(user_type user, movie_type movie);
 float get_svd_rmse(data_set_t dset);
 void get_qual(data_set_t dset);
+void init_bias_vectors(data_point * train_start, unsigned train_points);
 
 int main()
 {
@@ -51,35 +58,40 @@ int main()
 	data_point * data;
 	data_point * data_train_start, *data_probe_start;
 
-	// Need to initialize the movie and user feature vectors
+    // need this to seed the "rand" function
+    srand (static_cast <unsigned> (time(0)));
+
+    // Need to initialize the data io
+    init_data_io();
+    // Get the MU data and verify that it's about right
+    data_train_start = get_data(TRAIN_MU);
+    // Get the size of the data
+    data_train_points = get_data_size(TRAIN_MU);
+
+    init_bias_vectors(data_train_start, data_train_points);
+
+
+	// Need to initialize the movie feature vector
 	for (j = 0; j < NUM_MOVIES; j++)
 	{
-		movie_bias[j] = 0;
-
 		for (k = 0; k < NUM_FEATURES; k++)
 		{
-			movie_features[j][k] = 0.1;
+			movie_features[j][k] = MIN_FEATURE_START + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(MAX_FEATURE_START-MIN_FEATURE_START)));
 		}
 	}
+
+    // Need to initialize the user feature vector
 	for (j = 0; j < NUM_USERS; j++)
 	{
-		user_bias[j] = 0;
-
 		for (k = 0; k < NUM_FEATURES; k++)
 		{
-			user_features[j][k] = 0.1;
+			user_features[j][k] = MIN_FEATURE_START + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(MAX_FEATURE_START-MIN_FEATURE_START)));
 		}
 	}
 
 	// Open the output RMSE file
 	ofstream out_rmse ("../../../data/solutions/simple_svd_rmse.csv", ios::trunc);
 
-	// Need to initialize the data io
-	init_data_io();
-	// Get the data and verify that it's about right
-	data_train_start = get_data(TRAIN_MU);
-	// Get the size of the data
-	data_train_points = get_data_size(TRAIN_MU);
 
 	// Also need to get the probe data
 	data_probe_start = get_data(PROBE_MU);
@@ -129,7 +141,7 @@ int main()
 		out_rmse << train_rmse << "," << valid_rmse << "," << probe_rmse << endl;
 
         // Update regularization rate
-        //regularization_rate *= 0.9;
+        regularization_rate *= 0.9;
 
 		// Now evaluate and write the new qual file
 		get_qual(QUAL_MU);
@@ -264,4 +276,52 @@ void get_qual(data_set_t dset)
 	}
 
 }
+
+void init_bias_vectors(data_point * train_start, unsigned train_points)
+{
+
+    data_point * data = train_start;
+    int movie_num[NUM_MOVIES];
+    int movie_rating_sum[NUM_MOVIES];
+    int user_num[NUM_USERS];
+    int user_rating_sum[NUM_USERS];
+
+    for (int i = 0; i < NUM_MOVIES; i++)
+    {
+        movie_num[i] = 0;
+        movie_rating_sum[i] = 0;
+    }
+
+    for (int i = 0; i < NUM_USERS; i++)
+    {
+        user_num[i] = 0;
+        user_rating_sum[i] = 0;
+    }
+
+    for (int i = 0; i < train_points; i++)
+    {
+        movie_num[(data->movie)-1] += 1;
+        movie_rating_sum[(data->movie)-1] += data->rating;
+
+        user_num[(data->user)-1] += 1;
+        user_rating_sum[(data->user)-1] += data->rating;
+
+        data++;
+    }
+
+    // For each movie, calculate the movie bias. This is the average rating for
+    // a movie (NOT the movie's average rating), minus the movie's average rating.
+    for (int i = 0; i < NUM_MOVIES; i++) {
+
+        movie_bias[i] = ((MOVIE_AVG * BIAS_CONSTANT + movie_rating_sum[i])/(BIAS_CONSTANT + movie_num[i])) - MOVIE_AVG;
+    }
+
+    // For each user, calculate the user bias. This is the average rating for
+    // a user (NOT the user's average rating), minus the user's average rating.
+    for (int i = 0; i < NUM_USERS; i++) {
+
+        user_bias[i] = ((MOVIE_AVG * BIAS_CONSTANT + user_rating_sum[i])/(BIAS_CONSTANT + user_num[i])) - MOVIE_AVG;
+    }
+}
+
 
