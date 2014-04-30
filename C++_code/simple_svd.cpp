@@ -16,14 +16,12 @@
 using namespace std;
 
 // Define the number of features in the SVD
-#define NUM_FEATURES 50
+#define NUM_FEATURES 120
 
 // Define the learning rate
 #define LEARNING_RATE 0.002
 #define NUM_EPOCHS 60
-
-// Define the regularization rate.
-float regularization_rate = 0.04;
+#define REGULARIZATION_RATE 0.04
 
 // average score across all movies in train
 #define MOVIE_AVG 3.60861
@@ -142,9 +140,6 @@ int main()
 		// And write them to file
 		out_rmse << train_rmse << "," << valid_rmse << "," << probe_rmse << endl;
 
-        // Update regularization rate
-        regularization_rate *= 0.9;
-
 		// Now evaluate and write the new qual file
 		get_qual(QUAL_MU);
 	}
@@ -168,7 +163,7 @@ static inline void svd_train(user_type user, movie_type movie, rating_type ratin
 
 	// Calculate the error
 	error = LEARNING_RATE*(rating - predict_rating(user, movie));
-    adjustment_term =  LEARNING_RATE*regularization_rate;
+    adjustment_term =  LEARNING_RATE*REGULARIZATION_RATE;
 
 	// Descend on each of the features
 	for (int i = 0; i < NUM_FEATURES; i++)
