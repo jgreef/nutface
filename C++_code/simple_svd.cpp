@@ -3,6 +3,19 @@
 // This file performs a simple version of SVD for predicting
 //
 
+// TODO: Play around with how many features/epochs we want. Maybe try
+// 120 features with 100, 200, and 300 epochs, or a fixed number
+// of epochs on like 100, 200, 300 features.
+
+// TODO: Try not training on probe? Then we could use probe to
+// get out-of-sample error and we could stop training when
+// successive RMSEs don't differ by very much. Unless taking probe
+// out significantly decreases our performance.
+
+// TODO: Standardize output file names. For instance, maybe we want
+// something like
+// "DATE_simple_svd_FEATURES_EPOCHS"
+
 #include <iostream>
 #include <string>
 #include <fstream>
