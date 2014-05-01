@@ -34,7 +34,7 @@ using namespace std;
 
 // Define the learning rate
 #define LEARNING_RATE 0.002
-#define NUM_EPOCHS 100
+#define NUM_EPOCHS 200
 #define REGULARIZATION_RATE 0.04
 
 // average score across all movies in train
@@ -46,6 +46,9 @@ using namespace std;
 
 // Constant for calculating user/movie bias
 #define BIAS_CONSTANT 25
+
+// Constant for filename buffer size
+#define FILENAME_BUF_SIZE 512
 
 // Declare the feature vectors for SVD
 float movie_features[NUM_MOVIES][NUM_FEATURES];
@@ -69,7 +72,7 @@ int main()
 	unsigned data_train_points, data_probe_points;
 	int j, k;
 	struct tm * curr_time;
-	char filename[512];
+	char filename[FILENAME_BUF_SIZE];
 
 	data_point * data;
 	data_point * data_train_start, *data_probe_start;
@@ -111,7 +114,7 @@ int main()
 	curr_time = localtime(&timestamp);
 
 
-	snprintf(filename, 512, "../../../data/solutions/simple_svd_rmse_%d_%d_%dh%dm__%d_features.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES);
+	snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/simple_svd_rmse_%d_%d_%dh%dm__%d_features.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES);
 	ofstream out_rmse (filename, ios::trunc);
 
 
@@ -170,6 +173,27 @@ int main()
 	free_data(TRAIN_MU);
 	free_data(VALID_MU);
 	free_data(QUAL_MU);
+
+	// Get the time
+	timestamp = time(0);
+	// Convert the time to a string
+	curr_time = localtime(&timestamp);
+
+	// Finally, we should write the SVD features to disk as well so that we can use it in other applications
+	snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/simple_svd_movie_features_%d_%d_%dh%dm__%d_features_%d_epochs.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES, NUM_EPOCHS);
+	ofstream movie_feature_out (filename, ios::binary);
+	snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/simple_svd_user_features_%d_%d_%dh%dm__%d_features_%d_epochs.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES, NUM_EPOCHS);
+	ofstream user_feature_out (filename, ios::binary);
+	snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/simple_svd_movie_biases_%d_%d_%dh%dm__%d_features_%d_epochs.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES, NUM_EPOCHS);
+	ofstream movie_bias_out (filename, ios::binary);
+	snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/simple_svd_user_biases_%d_%d_%dh%dm__%d_features_%d_epochs.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES, NUM_EPOCHS);
+	ofstream user_bias_out (filename, ios::binary);
+
+	// And write the features to file
+	movie_feature_out.write((char*)movie_features, NUM_MOVIES*NUM_FEATURES*sizeof(float));
+	user_feature_out.write((char*)user_features, NUM_USERS*NUM_FEATURES*sizeof(float));
+	movie_bias_out.write((char*)movie_bias, NUM_MOVIES*sizeof(float));
+	user_bias_out.write((char*)user_bias, NUM_USERS*sizeof(float));
 
 	return 0;
 
@@ -279,7 +303,7 @@ void get_qual(data_set_t dset, int epochs)
 
 	time_t timestamp;
 	struct tm * curr_time;
-	char filename[512];
+	char filename[FILENAME_BUF_SIZE];
 
 	// Get the time
 	timestamp = time(0);
@@ -287,7 +311,7 @@ void get_qual(data_set_t dset, int epochs)
 	curr_time = localtime(&timestamp);
 
 
-	snprintf(filename, 512, "../../../data/solutions/simple_svd_qual_%d_%d_%dh%dm__%d_features_epoch_%d.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES, epochs);
+	snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/simple_svd_qual_%d_%d_%dh%dm__%d_features_epoch_%d.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES, epochs);
 
 	ofstream qual_output (filename, ios::trunc);
 
