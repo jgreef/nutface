@@ -22,6 +22,7 @@
 #include <time.h>
 #include <cmath>
 #include <numeric>
+#include <stdio.h>
 // #include <parallel/numeric>
 #include "data_types.h"
 #include "data_io.h"
@@ -29,11 +30,11 @@
 using namespace std;
 
 // Define the number of features in the SVD
-#define NUM_FEATURES 120
+#define NUM_FEATURES 200
 
 // Define the learning rate
 #define LEARNING_RATE 0.002
-#define NUM_EPOCHS 60
+#define NUM_EPOCHS 100
 #define REGULARIZATION_RATE 0.04
 
 // average score across all movies in train
@@ -56,17 +57,19 @@ float movie_bias[NUM_MOVIES];
 static inline void svd_train(user_type user, movie_type movie, rating_type rating);
 static inline float predict_rating(user_type user, movie_type movie);
 float get_svd_rmse(data_set_t dset);
-void get_qual(data_set_t dset);
+void get_qual(data_set_t dset, int epochs);
 void init_bias_vectors(data_point * train_start, unsigned train_points);
 
 int main()
 {
-	time_t begin_time, end_time;
+	time_t begin_time, end_time, timestamp;
 	double seconds;
 	float probe_rmse, train_rmse, valid_rmse;
 	int epochs = 0;
 	unsigned data_train_points, data_probe_points;
 	int j, k;
+	struct tm * curr_time;
+	char filename[512];
 
 	data_point * data;
 	data_point * data_train_start, *data_probe_start;
@@ -102,8 +105,14 @@ int main()
 		}
 	}
 
-	// Open the output RMSE file
-	ofstream out_rmse ("../../../data/solutions/simple_svd_rmse.csv", ios::trunc);
+	// Get the time
+	timestamp = time(0);
+	// Convert the time to a string
+	curr_time = localtime(&timestamp);
+
+
+	snprintf(filename, 512, "../../../data/solutions/simple_svd_rmse_%d_%d_%dh%dm__%d_features.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES);
+	ofstream out_rmse (filename, ios::trunc);
 
 
 	// Also need to get the probe data
@@ -154,7 +163,7 @@ int main()
 		out_rmse << train_rmse << "," << valid_rmse << "," << probe_rmse << endl;
 
 		// Now evaluate and write the new qual file
-		get_qual(QUAL_MU);
+		get_qual(QUAL_MU, epochs);
 	}
 
 	// And need to free the data
@@ -262,13 +271,25 @@ float get_svd_rmse(data_set_t dset)
 
 // This function will get the qual output for a svd trained model. DSET should
 //	be either QUAL_MU or QUAL_UM
-void get_qual(data_set_t dset)
+void get_qual(data_set_t dset, int epochs)
 {
 	data_point * data;
 	unsigned data_size;
 	float prediction;
 
-	ofstream qual_output ("../../../data/solutions/simple_svd_qual.out", ios::trunc);
+	time_t timestamp;
+	struct tm * curr_time;
+	char filename[512];
+
+	// Get the time
+	timestamp = time(0);
+	// Convert the time to a string
+	curr_time = localtime(&timestamp);
+
+
+	snprintf(filename, 512, "../../../data/solutions/simple_svd_qual_%d_%d_%dh%dm__%d_features_epoch_%d.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES, epochs);
+
+	ofstream qual_output (filename, ios::trunc);
 
 	// Get the qual data
 	data = get_data(dset);
