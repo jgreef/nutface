@@ -26,24 +26,24 @@ void write_binary_data()
 	int i = 0;
 
 	// Get the input files
-    ifstream mu_data ("../../../data/mu/all.dta");
-    ifstream mu_idx  ("../../../data/mu/all.idx");
+    ifstream mu_data ("../../data/mu/all.dta");
+    ifstream mu_idx  ("../../data/mu/all.idx");
 
-    ifstream um_data ("../../../data/um/all.dta");
-    ifstream um_idx  ("../../../data/um/all.idx");
+    ifstream um_data ("../../data/um/all.dta");
+    ifstream um_idx  ("../../data/um/all.idx");
 
     // Create the output files
-	ofstream mu_train 	("../../../data/mu/train.bin", ios::out | ios::trunc | ios::binary); 
-	ofstream mu_hidden 	("../../../data/mu/hidden.bin", ios::out | ios::trunc | ios::binary); 
-	ofstream mu_valid 	("../../../data/mu/valid.bin", ios::out | ios::trunc | ios::binary); 
-	ofstream mu_probe 	("../../../data/mu/probe.bin", ios::out | ios::trunc | ios::binary); 
-	ofstream mu_qual 	("../../../data/mu/qual.bin", ios::out | ios::trunc | ios::binary); 
+	ofstream mu_train 	("../../data/mu/train.bin", ios::out | ios::trunc | ios::binary); 
+	ofstream mu_hidden 	("../../data/mu/hidden.bin", ios::out | ios::trunc | ios::binary); 
+	ofstream mu_valid 	("../../data/mu/valid.bin", ios::out | ios::trunc | ios::binary); 
+	ofstream mu_probe 	("../../data/mu/probe.bin", ios::out | ios::trunc | ios::binary); 
+	ofstream mu_qual 	("../../data/mu/qual.bin", ios::out | ios::trunc | ios::binary); 
 
-	ofstream um_train  	("../../../data/um/train.bin", ios::out | ios::trunc | ios::binary); 
-	ofstream um_hidden 	("../../../data/um/hidden.bin", ios::out | ios::trunc | ios::binary); 
-	ofstream um_valid  	("../../../data/um/valid.bin", ios::out | ios::trunc | ios::binary); 
-	ofstream um_probe  	("../../../data/um/probe.bin", ios::out | ios::trunc | ios::binary); 
-	ofstream um_qual 	("../../../data/um/qual.bin", ios::out | ios::trunc | ios::binary); 
+	ofstream um_train  	("../../data/um/train.bin", ios::out | ios::trunc | ios::binary); 
+	ofstream um_hidden 	("../../data/um/hidden.bin", ios::out | ios::trunc | ios::binary); 
+	ofstream um_valid  	("../../data/um/valid.bin", ios::out | ios::trunc | ios::binary); 
+	ofstream um_probe  	("../../data/um/probe.bin", ios::out | ios::trunc | ios::binary); 
+	ofstream um_qual 	("../../data/um/qual.bin", ios::out | ios::trunc | ios::binary); 
 
     if (mu_data.is_open() && mu_idx.is_open() && um_data.is_open() && um_idx.is_open())
     {

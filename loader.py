@@ -7,11 +7,17 @@ import numpy as np
 NUM_USERS = 480189
 NUM_MOVIES = 17770
 
+BASE_LEN = 
+VALID_LEN =
+HIDDEN_LEN =
+PROBE_LEN = 
+QUAL_LEN = 
 base = None
 valid = None
 hidden = None
 probe = None
 qual = None
+
 
 path = ""
 
@@ -94,7 +100,35 @@ def getMovieProbeMatrix():
 def getMovieQualMatrix():
     x = 1
 
-initLoader("mu/")
+#initLoader("mu/")
 
-getUserBaseMatrix()
+#getUserBaseMatrix()
+
+f = open("mu/all.idx")
+
+count1 = 0
+count2 = 0
+count3 = 0
+count4 = 0
+count5 = 0
+i = 0
+for line in f:
+    i += 1
+    if i % 100000 == 0:
+        print i
+    if int(line) == 1:
+        count1 += 1
+    if int(line) == 2:
+        count2 += 1
+    if int(line) == 3:
+        count3 += 1
+    if int(line) == 4:
+        count4 += 1
+    if int(line) == 5:
+        count5 += 1
+print "count1 " + str(count1)
+print "count2 " + str(count2)
+print "count3 " + str(count3)
+print "count4 " + str(count4)
+print "count5 " + str(count5)
 
