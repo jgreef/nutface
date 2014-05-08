@@ -3,12 +3,26 @@
 // This file performs a simple version of SVD for predicting
 //
 
+// TODO: Play around with how many features/epochs we want. Maybe try
+// 120 features with 100, 200, and 300 epochs, or a fixed number
+// of epochs on like 100, 200, 300 features.
+
+// TODO: Try not training on probe? Then we could use probe to
+// get out-of-sample error and we could stop training when
+// successive RMSEs don't differ by very much. Unless taking probe
+// out significantly decreases our performance.
+
+// TODO: Standardize output file names. For instance, maybe we want
+// something like
+// "DATE_simple_svd_FEATURES_EPOCHS"
+
 #include <iostream>
 #include <string>
 #include <fstream>
 #include <time.h>
 #include <cmath>
 #include <numeric>
+#include <stdio.h>
 // #include <parallel/numeric>
 #include "data_types.h"
 #include "data_io.h"
@@ -16,16 +30,25 @@
 using namespace std;
 
 // Define the number of features in the SVD
-#define NUM_FEATURES 40
+#define NUM_FEATURES 200
 
 // Define the learning rate
 #define LEARNING_RATE 0.002
-#define NUM_EPOCHS 60
+#define NUM_EPOCHS 200
+#define REGULARIZATION_RATE 0.04
 
-// Define the regularization rate.
-float regularization_rate = 0.02;
-
+// average score across all movies in train
 #define MOVIE_AVG 3.60861
+
+// Bound the feature vectors by these values
+#define MIN_FEATURE_START -0.1
+#define MAX_FEATURE_START 0.1
+
+// Constant for calculating user/movie bias
+#define BIAS_CONSTANT 25
+
+// Constant for filename buffer size
+#define FILENAME_BUF_SIZE 512
 
 // Declare the feature vectors for SVD
 float movie_features[NUM_MOVIES][NUM_FEATURES];
@@ -37,49 +60,63 @@ float movie_bias[NUM_MOVIES];
 static inline void svd_train(user_type user, movie_type movie, rating_type rating);
 static inline float predict_rating(user_type user, movie_type movie);
 float get_svd_rmse(data_set_t dset);
-void get_qual(data_set_t dset);
+void get_qual(data_set_t dset, int epochs);
+void init_bias_vectors(data_point * train_start, unsigned train_points);
 
 int main()
 {
-	time_t begin_time, end_time;
+	time_t begin_time, end_time, timestamp;
 	double seconds;
 	float probe_rmse, train_rmse, valid_rmse;
 	int epochs = 0;
 	unsigned data_train_points, data_probe_points;
 	int j, k;
+	struct tm * curr_time;
+	char filename[FILENAME_BUF_SIZE];
 
 	data_point * data;
 	data_point * data_train_start, *data_probe_start;
 
-	// Need to initialize the movie and user feature vectors
+    // need this to seed the "rand" function
+    srand (static_cast <unsigned> (time(0)));
+
+    // Need to initialize the data io
+    init_data_io();
+    // Get the MU data and verify that it's about right
+    data_train_start = get_data(TRAIN_MU);
+    // Get the size of the data
+    data_train_points = get_data_size(TRAIN_MU);
+
+    init_bias_vectors(data_train_start, data_train_points);
+
+
+	// Need to initialize the movie feature vector
 	for (j = 0; j < NUM_MOVIES; j++)
 	{
-		movie_bias[j] = 0;
-
 		for (k = 0; k < NUM_FEATURES; k++)
 		{
-			movie_features[j][k] = 0.1;
+			movie_features[j][k] = MIN_FEATURE_START + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(MAX_FEATURE_START-MIN_FEATURE_START)));
 		}
 	}
+
+    // Need to initialize the user feature vector
 	for (j = 0; j < NUM_USERS; j++)
 	{
-		user_bias[j] = 0;
-
 		for (k = 0; k < NUM_FEATURES; k++)
 		{
-			user_features[j][k] = 0.1;
+			user_features[j][k] = MIN_FEATURE_START + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(MAX_FEATURE_START-MIN_FEATURE_START)));
 		}
 	}
 
-	// Open the output RMSE file
-	ofstream out_rmse ("../../../data/solutions/simple_svd_rmse.csv", ios::trunc);
+	// Get the time
+	timestamp = time(0);
+	// Convert the time to a string
+	curr_time = localtime(&timestamp);
 
-	// Need to initialize the data io
-	init_data_io();
-	// Get the data and verify that it's about right
-	data_train_start = get_data(TRAIN_MU);
-	// Get the size of the data
-	data_train_points = get_data_size(TRAIN_MU);
+
+	snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/simple_svd_rmse_%d_%d_%dh%dm__%d_features.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES);
+	ofstream out_rmse (filename, ios::trunc);
+
 
 	// Also need to get the probe data
 	data_probe_start = get_data(PROBE_MU);
@@ -128,17 +165,35 @@ int main()
 		// And write them to file
 		out_rmse << train_rmse << "," << valid_rmse << "," << probe_rmse << endl;
 
-        // Update regularization rate
-        //regularization_rate *= 0.9;
-
 		// Now evaluate and write the new qual file
-		get_qual(QUAL_MU);
+		get_qual(QUAL_MU, epochs);
 	}
 
 	// And need to free the data
 	free_data(TRAIN_MU);
 	free_data(VALID_MU);
 	free_data(QUAL_MU);
+
+	// Get the time
+	timestamp = time(0);
+	// Convert the time to a string
+	curr_time = localtime(&timestamp);
+
+	// Finally, we should write the SVD features to disk as well so that we can use it in other applications
+	snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/simple_svd_movie_features_%d_%d_%dh%dm__%d_features_%d_epochs.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES, NUM_EPOCHS);
+	ofstream movie_feature_out (filename, ios::binary);
+	snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/simple_svd_user_features_%d_%d_%dh%dm__%d_features_%d_epochs.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES, NUM_EPOCHS);
+	ofstream user_feature_out (filename, ios::binary);
+	snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/simple_svd_movie_biases_%d_%d_%dh%dm__%d_features_%d_epochs.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES, NUM_EPOCHS);
+	ofstream movie_bias_out (filename, ios::binary);
+	snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/simple_svd_user_biases_%d_%d_%dh%dm__%d_features_%d_epochs.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES, NUM_EPOCHS);
+	ofstream user_bias_out (filename, ios::binary);
+
+	// And write the features to file
+	movie_feature_out.write((char*)movie_features, NUM_MOVIES*NUM_FEATURES*sizeof(float));
+	user_feature_out.write((char*)user_features, NUM_USERS*NUM_FEATURES*sizeof(float));
+	movie_bias_out.write((char*)movie_bias, NUM_MOVIES*sizeof(float));
+	user_bias_out.write((char*)user_bias, NUM_USERS*sizeof(float));
 
 	return 0;
 
@@ -154,7 +209,7 @@ static inline void svd_train(user_type user, movie_type movie, rating_type ratin
 
 	// Calculate the error
 	error = LEARNING_RATE*(rating - predict_rating(user, movie));
-    adjustment_term =  LEARNING_RATE*regularization_rate;
+    adjustment_term =  LEARNING_RATE*REGULARIZATION_RATE;
 
 	// Descend on each of the features
 	for (int i = 0; i < NUM_FEATURES; i++)
@@ -240,13 +295,25 @@ float get_svd_rmse(data_set_t dset)
 
 // This function will get the qual output for a svd trained model. DSET should
 //	be either QUAL_MU or QUAL_UM
-void get_qual(data_set_t dset)
+void get_qual(data_set_t dset, int epochs)
 {
 	data_point * data;
 	unsigned data_size;
 	float prediction;
 
-	ofstream qual_output ("../../../data/solutions/simple_svd_qual.out", ios::trunc);
+	time_t timestamp;
+	struct tm * curr_time;
+	char filename[FILENAME_BUF_SIZE];
+
+	// Get the time
+	timestamp = time(0);
+	// Convert the time to a string
+	curr_time = localtime(&timestamp);
+
+
+	snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/simple_svd_qual_%d_%d_%dh%dm__%d_features_epoch_%d.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES, epochs);
+
+	ofstream qual_output (filename, ios::trunc);
 
 	// Get the qual data
 	data = get_data(dset);
@@ -264,4 +331,59 @@ void get_qual(data_set_t dset)
 	}
 
 }
+
+// This function initializes the bias vectors for users and movies. It's called once.
+void init_bias_vectors(data_point * train_start, unsigned train_points)
+{
+
+    data_point * data = train_start;
+
+    // Vectors to keep track of how many movies/users, and the total ratings of
+    // movies/users
+    int movie_num[NUM_MOVIES];
+    int movie_rating_sum[NUM_MOVIES];
+    int user_num[NUM_USERS];
+    int user_rating_sum[NUM_USERS];
+
+    // Initialize movie and user vectors
+    for (int i = 0; i < NUM_MOVIES; i++)
+    {
+        movie_num[i] = 0;
+        movie_rating_sum[i] = 0;
+    }
+    for (int i = 0; i < NUM_USERS; i++)
+    {
+        user_num[i] = 0;
+        user_rating_sum[i] = 0;
+    }
+
+    // Run through each data point, updating the number of users/movies that
+    // rated it, as well as the user/movie total sum.
+    for (int i = 0; i < train_points; i++)
+    {
+        movie_num[(data->movie)-1] += 1;
+        movie_rating_sum[(data->movie)-1] += data->rating;
+
+        user_num[(data->user)-1] += 1;
+        user_rating_sum[(data->user)-1] += data->rating;
+
+        data++;
+    }
+
+    // For each movie/user, calculate the bias. This is the average rating for
+    // the movie/user (NOT the movie/users's average rating), minus the average
+    // rating. Formulas found from the funny article (BetterMean).
+    for (int i = 0; i < NUM_MOVIES; i++) {
+
+        movie_bias[i] = ((MOVIE_AVG * BIAS_CONSTANT + movie_rating_sum[i])/(BIAS_CONSTANT + movie_num[i])) - MOVIE_AVG;
+    }
+
+    // For each user, calculate the user bias. This is the average rating for
+    // a user (NOT the user's average rating), minus the user's average rating.
+    for (int i = 0; i < NUM_USERS; i++) {
+
+        user_bias[i] = ((MOVIE_AVG * BIAS_CONSTANT + user_rating_sum[i])/(BIAS_CONSTANT + user_num[i])) - MOVIE_AVG;
+    }
+}
+
 
