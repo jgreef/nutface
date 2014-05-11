@@ -12,9 +12,6 @@
 // successive RMSEs don't differ by very much. Unless taking probe
 // out significantly decreases our performance.
 
-// TODO: Standardize output file names. For instance, maybe we want
-// something like
-// "DATE_simple_svd_FEATURES_EPOCHS"
 
 #include <iostream>
 #include <string>
@@ -278,7 +275,7 @@ float get_svd_rmse(data_set_t dset)
 	for (int i = 0; i < num_points; i++)
 	{
 		// Calculate the error
-		error = data->rating - predict_rating(data->user, data->movie);;
+		error = data->rating - predict_rating(data->user, data->movie);
 		rmse += error*error;
 		data++;
 	}
