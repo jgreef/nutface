@@ -3,6 +3,8 @@
 // This file performs the integrated model from Koren's 2008 paper.
 //
 
+// TODO: Use UM instead of MU
+
 #include <stdio.h>
 #include <iostream>
 #include <cmath>
@@ -27,10 +29,13 @@ float user_bias[NUM_USERS];
 float movie_bias[NUM_MOVIES];
 float movie_features[NUM_MOVIES][NUM_FEATURES];
 float user_features[NUM_USERS][NUM_FEATURES];
+// number of
 float movie_count[NUM_USERS];
 float implicit_y[NUM_MOVIES][NUM_FEATURES];
+float curr_user[NUM_MOVIES];
 
 static inline void initialize_parameters(void);
+static inline void get_curr_movies(data_point* data, user_type user);
 static inline float predict_rating(data_point* data, unsigned num_points, user_type user, movie_type movie);
 static inline void bias_train(user_type user, movie_type movie, float error);
 static inline void user_feature_train(user_type user, movie_type movie, float error);
@@ -50,8 +55,8 @@ int main()
     cout << "Loading data..." << endl;
     init_data_io();
 
-    data_train_start = get_data(TRAIN_MU);
-    num_points = get_data_size(TRAIN_MU);
+    data_train_start = get_data(TRAIN_UM);
+    num_points = get_data_size(TRAIN_UM);
 
     initialize_parameters();
 
@@ -76,8 +81,17 @@ int main()
     for (int i = 0; i < NUM_ITERATIONS; i++) {
         cout << "Iteration " << i+1 << endl;
 
+        int last_user = 0;
+
         // for each point in the dataset, train all parameters
         for (int j = 0; j < num_points; j++) {
+
+            int this_user = data->user;
+
+            if (this_user != last_user) {
+                //find this user's rated movies
+                get_curr_movies(data, data->user);
+            }
 
             // get current error first
             float error = data->rating - predict_rating(data_train_start, num_points, data->user, data->movie);
@@ -89,6 +103,7 @@ int main()
             //train wij
             //train cij
 
+            last_user = this_user;
             data++;
         }
 
@@ -101,6 +116,9 @@ int main()
     }
 
     // loop over qual set, applying the formula to everything
+
+    // And need to free the data
+    free_data(TRAIN_UM);
 }
 
 static inline void initialize_parameters(void)
@@ -115,6 +133,7 @@ static inline void initialize_parameters(void)
     // initialize movie bias
     for (int i = 0; i < NUM_MOVIES; i++) {
         movie_bias[i] = 0;
+        curr_user[i] = 0;
     }
 
     // initialize movie feature vector
@@ -137,6 +156,21 @@ static inline void initialize_parameters(void)
 
 }
 
+static inline void get_curr_movies(data_point* data, user_type user)
+{
+    cout << "NEW USER" << endl;
+    int i = 0;
+    while (data->user == user) {
+        curr_user[i] = data->movie;
+        i++;
+        data++;
+    }
+    for (; i < NUM_MOVIES; i++) {
+        curr_user[i] = 0;
+    }
+
+}
+
 static inline float predict_rating(data_point* data, unsigned num_points, user_type user, movie_type movie)
 {
     float tier_one = MOVIE_AVG;
@@ -145,10 +179,15 @@ static inline float predict_rating(data_point* data, unsigned num_points, user_t
     float tier_two = 0;
 
     for (int i = 0; i < NUM_FEATURES; i++) {
+
         data_point* data_iter = data;
         float y_sum = 0;
-        for (int j = 0; j < num_points; j++) {
-            if (data_iter->user == user) {
+        for (int j = 0; j < NUM_MOVIES; j++) {
+            int curr_movie = curr_user[j];
+            if (curr_movie == 0) {
+                break;
+            }
+            else {
                 y_sum += implicit_y[data->movie - 1][i];
             }
             data_iter++;
@@ -190,10 +229,16 @@ static inline void movie_feature_train(data_point* data, unsigned num_points, us
         float sum_y = 0;
         data_point* data_iter = data;
 
-        for (int j = 0; j < num_points; j++) {
-            if (data_iter->user == user) {
-                sum_y += implicit_y[data_iter->movie - 1][i];
+        for (int j = 0; j < NUM_MOVIES; j++) {
+
+            int curr_movie = curr_user[j];
+            if (curr_movie == 0){
+                break;
             }
+            else {
+                sum_y += implicit_y[curr_movie - 1][i];
+            }
+
             data_iter++;
         }
 
@@ -205,11 +250,17 @@ static inline void movie_feature_train(data_point* data, unsigned num_points, us
 
 static inline void implicit_y_train(data_point* data, unsigned num_points, user_type user, movie_type movie, float error)
 {
-    for (int i = 0; i < num_points; i++) {
-        if (data->user == user) {
-            for (int j = 0; j < NUM_FEATURES; j++) {
+    for (int i = 0; i < NUM_MOVIES; i++) {
 
-                implicit_y[data->movie - 1][j] += gammas[1]*(error*movie_count[data->movie - 1]*movie_features[user - 1][movie - 1] - gammas[4]*implicit_y[data->movie - 1][j]);
+        // curr_user is a vector of all the movie numbers that the user has rated.
+        // 0 indicates the end of the list of movies they've rated.
+        int curr_movie = curr_user[i];
+        if (curr_movie == 0) {
+            return;
+        }
+        else {
+            for (int j = 0; j < NUM_FEATURES; j++) {
+                implicit_y[curr_movie- 1][j] += gammas[1]*(error*movie_count[user - 1]*movie_features[user - 1][movie - 1] - gammas[4]*implicit_y[curr_movie- 1][j]);
             }
         }
 
