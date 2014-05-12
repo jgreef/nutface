@@ -3,8 +3,6 @@
 // This file performs the integrated model from Koren's 2008 paper.
 //
 
-// TODO: Use UM instead of MU
-
 #include <stdio.h>
 #include <iostream>
 #include <cmath>
@@ -86,6 +84,10 @@ int main()
         // for each point in the dataset, train all parameters
         for (int j = 0; j < num_points; j++) {
 
+            if (j % 10000 == 0) {
+                cout << "data point" << j << endl;
+            }
+
             int this_user = data->user;
 
             if (this_user != last_user) {
@@ -158,7 +160,6 @@ static inline void initialize_parameters(void)
 
 static inline void get_curr_movies(data_point* data, user_type user)
 {
-    cout << "NEW USER" << endl;
     int i = 0;
     while (data->user == user) {
         curr_user[i] = data->movie;
@@ -197,10 +198,9 @@ static inline float predict_rating(data_point* data, unsigned num_points, user_t
     }
 
     float prediction = tier_one + tier_two;
-    cout << prediction << endl;
 
     float ret_val = (prediction > 5) ? 5 : prediction;
-    ret_val = (prediction < 1) ? 1 : ret_val;
+    ret_val = (ret_val < 1) ? 1 : ret_val;
 
     //return prediction;
     return ret_val;
