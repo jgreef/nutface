@@ -84,7 +84,7 @@ int main()
 
             bias_train(data->user, data->movie, error);
             user_feature_train(data->user, data->movie, error);
-            //movie_feature_train
+            movie_feature_train(data_train_start, num_points, data->user, data->movie, error);
             implicit_y_train(data_train_start, num_points, data->user, data->movie, error);
             //train wij
             //train cij
@@ -143,10 +143,9 @@ static inline float predict_rating(data_point* data, unsigned num_points, user_t
     tier_one += movie_bias[movie - 1] + user_bias[user - 1];
 
     float tier_two = 0;
-    data_point* data_iter = data;
 
     for (int i = 0; i < NUM_FEATURES; i++) {
-
+        data_point* data_iter = data;
         float y_sum = 0;
         for (int j = 0; j < num_points; j++) {
             if (data_iter->user == user) {
@@ -156,8 +155,6 @@ static inline float predict_rating(data_point* data, unsigned num_points, user_t
         }
 
         tier_two += movie_features[movie - 1][i] * (user_features[user - 1][i] + movie_count[user - 1]*y_sum);
-
-        data_iter = data;
     }
 
     float prediction = tier_one + tier_two;
@@ -187,18 +184,21 @@ static inline void user_feature_train(user_type user, movie_type movie, float er
 
 static inline void movie_feature_train(data_point* data, unsigned num_points, user_type user, movie_type movie, float error)
 {
+
     for (int i = 0; i < NUM_FEATURES; i++)
     {
         float sum_y = 0;
+        data_point* data_iter = data;
 
         for (int j = 0; j < num_points; j++) {
-            if (data->user == user) {
-                sum_y += implicit_y[data->movie - 1][i];
+            if (data_iter->user == user) {
+                sum_y += implicit_y[data_iter->movie - 1][i];
             }
-            data++;
+            data_iter++;
         }
 
         movie_features[movie - 1][i] += gammas[1]*(error*(user_features[user - 1][i] + movie_count[user - 1]*sum_y) - gammas[4]*movie_features[movie - 1][i]);
+
     }
 
 }
