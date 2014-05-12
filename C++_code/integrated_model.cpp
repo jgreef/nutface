@@ -31,7 +31,7 @@ float movie_count[NUM_USERS];
 float implicit_y[NUM_MOVIES][NUM_FEATURES];
 
 static inline void initialize_parameters(void);
-static inline float predict_rating(user_type user, movie_type movie);
+static inline float predict_rating(data_point* data, unsigned num_points, user_type user, movie_type movie);
 static inline void bias_train(user_type user, movie_type movie, float error);
 static inline void user_feature_train(user_type user, movie_type movie, float error);
 static inline void movie_feature_train(data_point* data, unsigned num_points, user_type user, movie_type movie, float error);
@@ -80,7 +80,7 @@ int main()
         for (int j = 0; j < num_points; j++) {
 
             // get current error first
-            float error = data->rating - predict_rating(data->user, data->movie);
+            float error = data->rating - predict_rating(data_train_start, num_points, data->user, data->movie);
 
             bias_train(data->user, data->movie, error);
             user_feature_train(data->user, data->movie, error);
@@ -137,10 +137,31 @@ static inline void initialize_parameters(void)
 
 }
 
-static inline float predict_rating(user_type user, movie_type movie)
+static inline float predict_rating(data_point* data, unsigned num_points, user_type user, movie_type movie)
 {
-    float prediction = MOVIE_AVG;
-    prediction += movie_bias[movie - 1] + user_bias[user - 1];
+    float tier_one = MOVIE_AVG;
+    tier_one += movie_bias[movie - 1] + user_bias[user - 1];
+
+    float tier_two = 0;
+    data_point* data_iter = data;
+
+    for (int i = 0; i < NUM_FEATURES; i++) {
+
+        float y_sum = 0;
+        for (int j = 0; j < num_points; j++) {
+            if (data_iter->user == user) {
+                y_sum += implicit_y[data->movie - 1][i];
+            }
+            data_iter++;
+        }
+
+        tier_two += movie_features[movie - 1][i] * (user_features[user - 1][i] + movie_count[user - 1]*y_sum);
+
+        data_iter = data;
+    }
+
+    float prediction = tier_one + tier_two;
+    cout << prediction << endl;
 
     float ret_val = (prediction > 5) ? 5 : prediction;
     ret_val = (prediction < 1) ? 1 : ret_val;
@@ -174,6 +195,7 @@ static inline void movie_feature_train(data_point* data, unsigned num_points, us
             if (data->user == user) {
                 sum_y += implicit_y[data->movie - 1][i];
             }
+            data++;
         }
 
         movie_features[movie - 1][i] += gammas[1]*(error*(user_features[user - 1][i] + movie_count[user - 1]*sum_y) - gammas[4]*movie_features[movie - 1][i]);
