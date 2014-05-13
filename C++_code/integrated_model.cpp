@@ -33,10 +33,11 @@ float movie_count[NUM_USERS];
 float implicit_y[NUM_MOVIES][NUM_FEATURES];
 // a list of movies the current user has rated
 float curr_user[NUM_MOVIES];
+float user_implicit_y[NUM_FEATURES];
 
 static inline void initialize_parameters(void);
 static inline void get_curr_movies(data_point* data, user_type user);
-static inline float predict_rating(data_point* data, unsigned num_points, user_type user, movie_type movie);
+static inline float predict_rating(user_type user, movie_type movie);
 static inline void bias_train(user_type user, movie_type movie, float error);
 static inline void feature_train(user_type user, movie_type movie, float error);
 static inline void implicit_y_train(user_type user, movie_type movie, float error);
@@ -88,7 +89,7 @@ int main()
         // for each point in the dataset, train all parameters
         for (int j = 0; j < num_points; j++) {
 
-            if (j % 10000 == 0) {
+            if (j % 100000 == 0) {
                 cout << "   Data point " << j << endl;
             }
 
@@ -98,10 +99,15 @@ int main()
             if (this_user != last_user) {
                 //find this user's rated movies
                 get_curr_movies(data, data->user);
+                last_user = this_user;
             }
 
             // get current error first
-            float error = data->rating - predict_rating(data_train_start, num_points, data->user, data->movie);
+            float error = data->rating - predict_rating(data->user, data->movie);
+
+            for (int k = 0; k < NUM_FEATURES; k++) {
+                user_implicit_y[k] = 0;
+            }
 
             // train all of the parameters for the model
             bias_train(data->user, data->movie, error);
@@ -110,13 +116,12 @@ int main()
             //train wij
             //train cij
 
-            last_user = this_user;
             data++;
         }
 
         // update the constants so we don't overfit
         for (int j = 0; j < 6; j++) {
-            gammas[i] *= 0.9;
+            gammas[j] *= 0.9;
         }
 
         data = data_train_start;
@@ -145,6 +150,10 @@ static inline void initialize_parameters(void)
     for (int i = 0; i < NUM_MOVIES; i++) {
         movie_bias[i] = 0;
         curr_user[i] = 0;
+    }
+
+    for (int i = 0; i < NUM_FEATURES; i++) {
+        user_implicit_y[i] = 0;
     }
 
     // initialize movie feature vector
@@ -177,18 +186,17 @@ static inline void get_curr_movies(data_point* data, user_type user)
         i++;
         data++;
     }
-    for (; i < NUM_MOVIES; i++) {
+    for (; curr_user[i] != 0; i++) {
         curr_user[i] = 0;
     }
 
 }
 
 // The actual rating prediction. Based on formula from paper.
-static inline float predict_rating(data_point* data, unsigned num_points, user_type user, movie_type movie)
+static inline float predict_rating(user_type user, movie_type movie)
 {
     // tier 1 is the normal movie mean, plus user and feature bias.
-    float tier_one = MOVIE_AVG;
-    tier_one += movie_bias[movie - 1] + user_bias[user - 1];
+    float tier_one = MOVIE_AVG + movie_bias[movie - 1] + user_bias[user - 1];
 
     // tier two includes implicit information
     float tier_two = 0;
@@ -196,21 +204,7 @@ static inline float predict_rating(data_point* data, unsigned num_points, user_t
     // take the dot product of the movie feature vector with the implicit user feedback
     for (int i = 0; i < NUM_FEATURES; i++) {
 
-        // get the sum of the y-parameter information for the current user and current feature
-        data_point* data_iter = data;
-        float y_sum = 0;
-        for (int j = 0; j < NUM_MOVIES; j++) {
-            int curr_movie = curr_user[j];
-            if (curr_movie == 0) {
-                break;
-            }
-            else {
-                y_sum += implicit_y[data->movie - 1][i];
-            }
-            data_iter++;
-        }
-
-        tier_two += movie_features[movie - 1][i] * (user_features[user - 1][i] + movie_count[user - 1]*y_sum);
+        tier_two += movie_features[movie - 1][i] * (user_features[user - 1][i] + movie_count[user - 1]*user_implicit_y[i]);
     }
 
     // and add the two tiers together
@@ -221,7 +215,8 @@ static inline float predict_rating(data_point* data, unsigned num_points, user_t
     float ret_val = (prediction > 5) ? 5 : prediction;
     ret_val = (ret_val < 1) ? 1 : ret_val;
 
-    //return prediction;
+    //cout << ret_val << endl;
+
     return ret_val;
 }
 
@@ -239,41 +234,27 @@ static inline void feature_train(user_type user, movie_type movie, float error)
 
     for (int i = 0; i < NUM_FEATURES; i++)
     {
-        float sum_y = 0;
-
-        for (int j = 0; j < NUM_MOVIES; j++) {
-
-            int curr_movie = curr_user[j];
-            if (curr_movie == 0){
-                break;
-            }
-            else {
-                sum_y += implicit_y[curr_movie - 1][i];
-            }
-        }
 
         user_features[user - 1][i] += gammas[1]*(error*movie_features[movie - 1][i] - gammas[4]*user_features[user - 1][i]);
-        movie_features[movie - 1][i] += gammas[1]*(error*(user_features[user - 1][i] + movie_count[user - 1]*sum_y) - gammas[4]*movie_features[movie - 1][i]);
+        movie_features[movie - 1][i] += gammas[1]*(error*(user_features[user - 1][i] + movie_count[user - 1]*user_implicit_y[i]) - gammas[4]*movie_features[movie - 1][i]);
 
     }
 
 }
 
-// trains the yij parameter for each data point
+// trains the yj parameter for each data point
 static inline void implicit_y_train(user_type user, movie_type movie, float error)
 {
-    for (int i = 0; i < NUM_MOVIES; i++) {
-
-        // curr_user is a vector of all the movie numbers that the user has rated.
-        // 0 indicates the end of the list of movies they've rated.
-        int curr_movie = curr_user[i];
-        if (curr_movie == 0) {
-            return;
+    // curr_user is a vector of all the movie numbers that the user has rated.
+    // 0 indicates the end of the list of movies they've rated.
+    int i = 0;
+    int curr_movie = curr_user[i];
+    while (curr_movie != 0) {
+        for (int j = 0; j < NUM_FEATURES; j++) {
+            implicit_y[curr_movie - 1][j] += gammas[1]*(error*movie_count[user - 1]*movie_features[user - 1][movie - 1] - gammas[4]*implicit_y[curr_movie - 1][j]);
+            user_implicit_y[j] += implicit_y[curr_movie - 1][j];
         }
-        else {
-            for (int j = 0; j < NUM_FEATURES; j++) {
-                implicit_y[curr_movie - 1][j] += gammas[1]*(error*movie_count[user - 1]*movie_features[user - 1][movie - 1] - gammas[4]*implicit_y[curr_movie- 1][j]);
-            }
-        }
+        i++;
+        curr_movie = curr_user[i];
     }
 }
