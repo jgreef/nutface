@@ -6,12 +6,13 @@
 #include <stdio.h>
 #include <iostream>
 #include <cmath>
+#include <fstream>
 #include "data_types.h"
 #include "data_io.h"
 
 using namespace std;
 
-#define NUM_ITERATIONS 30
+#define NUM_ITERATIONS 15
 #define NUM_FEATURES 50
 
 // Bound the feature vectors by these values
@@ -22,17 +23,24 @@ using namespace std;
 
 float gammas[6] =  { 0.007, 0.007, 0.001, 0.005, 0.015, 0.015 };
 
+// Constant for filename buffer size
+#define FILENAME_BUF_SIZE 512
+
 // Parameters of integrated model
+
+// normal bias and feature parameters
 float user_bias[NUM_USERS];
 float movie_bias[NUM_MOVIES];
 float movie_features[NUM_MOVIES][NUM_FEATURES];
 float user_features[NUM_USERS][NUM_FEATURES];
+
 // number of movies rated by each user
 float movie_count[NUM_USERS];
 // the y value in tier two of the model
 float implicit_y[NUM_MOVIES][NUM_FEATURES];
 // a list of movies the current user has rated
 float curr_user[NUM_MOVIES];
+// running total of implicit y sum for the current user
 float user_implicit_y[NUM_FEATURES];
 
 static inline void initialize_parameters(void);
@@ -41,6 +49,7 @@ static inline float predict_rating(user_type user, movie_type movie);
 static inline void bias_train(user_type user, movie_type movie, float error);
 static inline void feature_train(user_type user, movie_type movie, float error);
 static inline void implicit_y_train(user_type user, movie_type movie, float error);
+static inline void predict_qual(void);
 
 
 
@@ -89,7 +98,7 @@ int main()
         // for each point in the dataset, train all parameters
         for (int j = 0; j < num_points; j++) {
 
-            if (j % 100000 == 0) {
+            if (j % 10000 == 0) {
                 cout << "   Data point " << j << endl;
             }
 
@@ -128,9 +137,7 @@ int main()
 
     }
 
-    // TODO: loop over qual set using predict_rating
-
-
+    predict_qual();
 
     // And need to free the data
     free_data(TRAIN_UM);
@@ -256,5 +263,70 @@ static inline void implicit_y_train(user_type user, movie_type movie, float erro
         }
         i++;
         curr_movie = curr_user[i];
+    }
+}
+
+static inline void predict_qual() {
+
+    data_point * data = get_data(QUAL_UM);
+    unsigned data_size = get_data_size(QUAL_UM);
+    float prediction;
+
+    time_t timestamp;
+    struct tm * curr_time;
+    char filename[FILENAME_BUF_SIZE];
+
+    // Get the time
+    timestamp = time(0);
+    // Convert the time to a string
+    curr_time = localtime(&timestamp);
+
+
+    snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/integrated_qual_%d_%d_%dh%dm__%d_features_.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES);
+
+    ofstream qual_output (filename, ios::trunc);
+
+    for(int i = 0; i < data_size; i++)
+    {
+        user_type user = data->user;
+        movie_type movie = data->movie;
+
+        get_curr_movies(data, user);
+
+        // tier 1 is the normal movie mean, plus user and feature bias.
+        float tier_one = MOVIE_AVG + movie_bias[movie - 1] + user_bias[user - 1];
+
+        // tier two includes implicit information
+        float tier_two = 0;
+
+        // take the dot product of the movie feature vector with the implicit user feedback
+        for (int j = 0; j < NUM_FEATURES; j++) {
+
+            float y_sum = 0;
+            for (int k = 0; k < NUM_MOVIES; k++) {
+                int curr_movie = curr_user[k];
+                if (curr_movie == 0) {
+                    break;
+                }
+                else {
+                    y_sum += implicit_y[curr_movie - 1][j];
+                }
+            }
+
+            tier_two += movie_features[movie - 1][j] * (user_features[user - 1][j] + movie_count[user - 1]*y_sum);
+        }
+
+        // and add the two tiers together
+        float prediction = tier_one + tier_two;
+
+        // TODO: add tier 3
+
+        float ret_val = (prediction > 5) ? 5 : prediction;
+        ret_val = (ret_val < 1) ? 1 : ret_val;
+
+        // Write it to the file
+        qual_output << ret_val << endl;
+        // Increment the pointer
+        data++;
     }
 }
