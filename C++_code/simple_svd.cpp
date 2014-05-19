@@ -41,8 +41,15 @@ static inline void svd_train(user_type user, movie_type movie, rating_type ratin
 static inline float predict_rating(user_type user, movie_type movie);
 float get_svd_rmse(data_set_t dset);
 void get_qual(data_set_t dset);
+int do_svd(void);
+void get_probe(void);
 
-int main()
+int main(void)
+{
+	get_probe();
+}
+
+int do_svd()
 {
 	time_t begin_time, end_time;
 	double seconds;
@@ -144,6 +151,29 @@ int main()
 
 }
 
+// This will get the probe based off of some sketchy files
+void get_probe(void)
+{
+	// First, need to declare and open the files
+	ifstream user_feature_file;
+	user_feature_file.open("../../../data/solutions/simple_svd_user_features_4_1_6h30m__200_features_200_epochs.out", ios::binary);
+	ifstream movie_feature_file;
+	movie_feature_file.open("../../../data/solutions/simple_svd_movie_features_4_1_6h30m__200_features_200_epochs.out", ios::binary);
+	ifstream user_bias_file;
+	user_bias_file.open("../../../data/solutions/simple_svd_user_biases_4_1_6h30m__200_features_200_epochs.out", ios::binary);
+	ifstream movie_bias_file;
+	movie_bias_file.open("../../../data/solutions/simple_svd_movie_biases_4_1_6h30m__200_features_200_epochs.out", ios::binary);
+
+	// Now, read in the shtuff
+	user_feature_file.read((char*)user_features, (NUM_USERS*NUM_FEATURES)*sizeof(float));
+	movie_feature_file.read((char*)movie_features, (NUM_MOVIES*NUM_FEATURES)*sizeof(float));
+	user_bias_file.read((char*)user_bias, NUM_USERS*sizeof(float));
+	movie_bias_file.read((char*)movie_bias, NUM_MOVIES*sizeof(float));
+
+	// Predict the RMSE on probe to make sure that it worked OK and write the outfile
+	get_svd_rmse(PROBE_MU);
+}
+
 // This funciont is to be called on a point in the data set to train 
 //	all of the features on one point
 static inline void svd_train(user_type user, movie_type movie, rating_type rating)
@@ -202,6 +232,9 @@ float get_svd_rmse(data_set_t dset)
 	time_t begin_time, end_time;
 	float prediction;
 
+	ofstream probe_out;
+	probe_out.open("../../../data/solutions/simple_svd_200_200_probe.out", ios::trunc);
+
 	// First, need to get the data
 	data = get_data(dset);
 	num_points = get_data_size(dset);
@@ -214,7 +247,11 @@ float get_svd_rmse(data_set_t dset)
 	for (int i = 0; i < num_points; i++)
 	{
 		// Calculate the error
-		error = data->rating - predict_rating(data->user, data->movie);;
+		prediction = predict_rating(data->user, data->movie);
+		// write the prediction to the output file
+		probe_out << prediction << endl;
+		// And now update the error
+		error = data->rating - prediction;
 		rmse += error*error;
 		data++;
 	}
