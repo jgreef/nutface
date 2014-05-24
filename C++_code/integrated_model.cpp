@@ -21,6 +21,8 @@ using namespace std;
 
 #define MOVIE_AVG 3.60861
 
+#define MAX_MOVIES 251
+
 float gammas[6] =  { 0.007, 0.007, 0.001, 0.005, 0.015, 0.015 };
 
 // Constant for filename buffer size
@@ -38,10 +40,8 @@ float user_features[NUM_USERS][NUM_FEATURES];
 float movie_count[NUM_USERS];
 // the y value in tier two of the model
 float implicit_y[NUM_MOVIES][NUM_FEATURES];
-// a list of movies the current user has rated
-float curr_user[NUM_MOVIES];
-// running total of implicit y sum for the current user
-float user_implicit_y[NUM_FEATURES];
+// list of movies each user has rated, filled out with zeros.
+float curr_user[NUM_USERS][MAX_MOVIES];
 
 static inline void initialize_parameters(void);
 static inline void get_curr_movies(data_point* data, user_type user);
@@ -71,7 +71,6 @@ int main()
     initialize_parameters();
 
     data = data_train_start;
-
 
     // initialize movie count for each user (# of movies the user rated)
     for (int j = 0; j < num_points; j++) {
@@ -113,10 +112,6 @@ int main()
 
             // get current error first
             float error = data->rating - predict_rating(data->user, data->movie);
-
-            for (int k = 0; k < NUM_FEATURES; k++) {
-                user_implicit_y[k] = 0;
-            }
 
             // train all of the parameters for the model
             bias_train(data->user, data->movie, error);
@@ -181,6 +176,7 @@ static inline void initialize_parameters(void)
         }
     }
 
+
 }
 
 // Fill the curr_user array with the movies the current user has rated. Fill
@@ -227,14 +223,16 @@ static inline float predict_rating(user_type user, movie_type movie)
     return ret_val;
 }
 
+/*
 // Trains the user and movie biases for each data point
 static inline void bias_train(user_type user, movie_type movie, float error)
 {
     user_bias[user - 1] += gammas[0]*(error - gammas[3]*user_bias[user - 1]);
     movie_bias[movie - 1] += gammas[0]*(error - gammas[3]*movie_bias[movie - 1]);
 }
+*/
 
-
+/*
 // trains the movie and user feature vectors for each data point
 static inline void feature_train(user_type user, movie_type movie, float error)
 {
@@ -248,6 +246,7 @@ static inline void feature_train(user_type user, movie_type movie, float error)
     }
 
 }
+*/
 
 // trains the yj parameter for each data point
 static inline void implicit_y_train(user_type user, movie_type movie, float error)
