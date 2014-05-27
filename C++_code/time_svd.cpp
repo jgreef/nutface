@@ -142,7 +142,7 @@ int main()
 	curr_time = localtime(&timestamp);
 
 
-	snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/simple_svd_rmse_%d_%d_%dh%dm__%d_features.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES);
+	snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/time_svd_probe_rmse_%d_%d_%dh%dm__%d_features.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES);
 	ofstream out_rmse (filename, ios::trunc);
 
 
@@ -172,14 +172,14 @@ int main()
 
 
 		// Train on Probe
-		// data = data_probe_start;
-		// for (int i = 0; i < data_probe_points; i++)
-		// {
-		// 	// Train
-		// 	svd_train(data->user, data->movie, data->rating);
-		// 	// Increment the pointer
-		// 	data++;
-		// }
+		data = data_probe_start;
+		for (int i = 0; i < data_probe_points; i++)
+		{
+			// Train
+			svd_train(data->user, data->movie, data->rating, data->timestamp);
+			// Increment the pointer
+			data++;
+		}
 
 		// Figure out how long it took
 		time(&end_time);
@@ -195,7 +195,7 @@ int main()
 
 		// Now evaluate and write the new qual file
 		get_qual(QUAL_MU, epochs);
-		get_qual(PROBE_MU, epochs);
+		// get_qual(PROBE_MU, epochs);
 	}
 
 	// And need to free the data
@@ -349,7 +349,7 @@ void get_qual(data_set_t dset, int epochs)
 
 
 
-	snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/time_svd_%d_%d_%d_%dh%dm__%d_features_epoch_%d.out", dset, curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES, epochs);
+	snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/time_svd_probe_%d_%d_%d_%dh%dm__%d_features_epoch_%d.out", dset, curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES, epochs);
 
 	ofstream qual_output (filename, ios::trunc);
 
