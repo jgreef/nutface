@@ -4,15 +4,10 @@
 //
 //
 
-// FIX: When you get the common users vector, you also need get two vectors of rankings --
-// one for the 1st movie and one for 2nd.
-// each index corresponds to a different USER
-// No full ranking of whole dataset.
-// Don't use Spearman's because I don't know how to adjust it. Just use the one from the article.
-
 #include <stdio.h>
 #include <iostream>
 #include <cmath>
+#include <fstream>
 #include "data_types.h"
 #include "data_io.h"
 
@@ -20,12 +15,20 @@ using namespace std;
 
 #define K 30
 #define BETA 500
+#define EPSILON 0.05
 
+// Constant for filename buffer size
+#define FILENAME_BUF_SIZE 512
+
+movie_type neighbors[K];
 float similarities[NUM_MOVIES][NUM_MOVIES];
 float A[NUM_MOVIES][NUM_MOVIES];
 
+float littleA[K][K];
 float B[K];
-float weights[NUM_MOVIES];
+float weights[K];
+float temp[K];
+float temp2[K];
 
 user_type common_users[NUM_USERS/4];
 rating_type ratings1[NUM_USERS/4];
@@ -35,22 +38,38 @@ rating_type ratings2[NUM_USERS/4];
 //static inline void rank_movies(data_point * data, unsigned num_points);
 static inline void sort_movie_avg(int left, int right);
 static inline float partition(int left, int right, int pivot_idx);
-static inline void get_movie_avg(data_point * data, unsigned num_points);
+static inline float get_movie_mean(data_point * data);
 static inline void get_similarities(data_point* first, data_point* second);
 static inline int get_common_users(data_point * first, data_point * second);
 static inline void get_A_hat(data_point * data);
+static inline void get_user_mean(data_point * data);
+static inline void get_neighbors(movie_type movie);
+static inline void predict_qual(data_point * data, unsigned num_points);
+static inline void build_little_A_and_B(movie_type movie);
+static inline void find_weights();
+static inline float make_prediction(data_point * data, user_type user);
+static inline void gather_ratings(data_point * data, user_type user);
+static inline float temp_mag(void);
+static inline float calc_alpha(void);
+static inline void predict_probe(data_point * data, unsigned num_points);
 
 // Perform the KNN collaberative filtering
 int main() {
 
-    data_point * data_start, *ptr1, *ptr2;
-    unsigned num_points;
+    data_point * data_start, *qual_start, *probe_start, *ptr1, *ptr2;
+    unsigned num_points, qual_points, probe_points;
 
     cout << "Loading data..." << endl;
     init_data_io();
 
     data_start = get_data(TRAIN_MU);
     num_points = get_data_size(TRAIN_MU);
+
+    qual_start = get_data(QUAL_MU);
+    qual_points = get_data_size(QUAL_MU);
+
+    probe_start = get_data(PROBE_MU);
+    probe_points = get_data_size(PROBE_MU);
 
     ptr1 = data_start;
 
@@ -81,7 +100,22 @@ int main() {
         }
     }
 
+    FILE *f = fopen("similarity_matrix.data", "wb");
+    fwrite(similarities, sizeof(float), sizeof(similarities), f);
+    fclose(f);
+
+    f = fopen("A_bar.data", "wb");
+    fwrite(A, sizeof(float), sizeof(A), f);
+    fclose(f);
+
+    cout << "Getting A hat matrix..." << endl;
     get_A_hat(data_start);
+
+    cout << "Predicting probe..." << endl;
+    predict_probe(probe_start, probe_points);
+
+    cout << "Predicting qual..." << endl;
+    predict_qual(qual_start, qual_points);
 }
 
 static inline void get_A_hat(data_point * data) {
@@ -89,6 +123,7 @@ static inline void get_A_hat(data_point * data) {
     float total = 0;
     int number = 0;
 
+    // get average of entire A matrix
     for (int i = 0; i < NUM_MOVIES; i++) {
 
         for (int j = 0; j <= i; j++) {
@@ -102,6 +137,7 @@ static inline void get_A_hat(data_point * data) {
 
     data_point * ptr1 = data;
 
+    // Calculate A hat matrix (just replace A bar matrix)
     for (int i = 0; i < NUM_MOVIES; i++) {
 
         cout << "    Movie " << i+1 << endl;
@@ -128,6 +164,20 @@ static inline void get_A_hat(data_point * data) {
 
 }
 
+static inline float get_movie_mean(data_point * data) {
+
+    int count = 0;
+    float total = 0;
+    movie_type curr_movie = data->movie;
+    while (data->movie == curr_movie) {
+        total += data->rating;
+        count++;
+        data++;
+    }
+
+    return total / (float)count;
+}
+
 
 // This function uses the Spearman correlation coefficient to get the similarities
 // between each pair of movies in the dataset.
@@ -135,46 +185,39 @@ static inline void get_similarities(data_point* first, data_point* second) {
 
     // populate the movie_users vector
     int num_users = get_common_users(first, second);
-    cout << common_users[0] << endl;
-    cout << (int)ratings1[0] << endl;
-    cout << (int)ratings2[0] << endl;
+    if (num_users == 0) {
+        similarities[first->movie - 1][second->movie - 1] = -1.0;
+        return;
+    }
+    float mean1 = get_movie_mean(first);
+    float mean2 = get_movie_mean(second);
 
-    cout << "first " << first->movie << endl;
-    cout << "second " << second->movie << endl;
-
-    int i = 0;
     float error1 = 0;
     float error2 = 0;
     float error1sq = 0;
     float error2sq = 0;
-    int product = 0;
-    float mean1 = 0;
-    float mean2 = 0;
+    float product = 0;
     float topproduct = 0;
-    // Solve for Pearson correlation coefficient.
-    while (common_users[i] != 0) {
-        mean1 += ratings1[i];
-        mean2 += ratings2[i];
-        i++;
-    }
 
-    mean1 /= (float)num_users;
-    mean2 /= (float)num_users;
-
-    i = 0;
-    while (common_users[i] != 0) {
+    for (int i = 0; i < num_users; i++) {
         error1 = (ratings1[i] - mean1);
         error2 = (ratings2[i] - mean2);
         error1sq += error1*error1;
         error2sq += error2*error2;
         topproduct += error1*error2;
-        product += ratings1[i]*ratings2[i];
-        i++;
+        product += error1 * error2;
     }
 
-    similarities[first->movie - 1][second->movie - 1] = (topproduct / pow(error1sq * error2sq, (float)0.5))*((float)i/(float)i + 0.1);
-    A[first->movie - 1][second->movie - 1] = product / (float)i;
-    cout << "Similarity: " << similarities[first->movie -1][second->movie - 1] << endl;
+    if (num_users < 50) {
+        similarities[first->movie - 1][second->movie - 1] = (topproduct / pow(error1sq * error2sq, (float)0.5)) * (num_users/(float)50);
+    }
+    else {
+        similarities[first->movie - 1][second->movie - 1] = (topproduct / pow(error1sq * error2sq, (float)0.5));
+    }
+    A[first->movie - 1][second->movie - 1] = product / (float)num_users;
+    if ((similarities[first->movie -1][second->movie - 1] < -1) || (similarities[first->movie -1][second->movie - 1] > 1)) {
+        cout << "Similarity: " << similarities[first->movie -1][second->movie - 1] << endl;
+    }
 }
 
 // This function gets the set of common users that have rated both movies, and
@@ -192,9 +235,8 @@ static inline int get_common_users(data_point * first, data_point * second) {
             // if both ratings have the same user, add the
             if (curr_first->user == curr_second->user) {
                 common_users[idx] = curr_first->user;
-                ratings1[idx] = (int)curr_first->rating;
-                cout << "idx " << idx << " is " << ratings1[idx] << endl;
-                ratings2[idx] = (int)curr_second->rating;
+                ratings1[idx] = curr_first->rating;
+                ratings2[idx] = curr_second->rating;
                 idx++;
                 break;
             }
@@ -207,17 +249,256 @@ static inline int get_common_users(data_point * first, data_point * second) {
 
     int retval = idx;
 
-    cout << "idx" << idx << endl;
-    for (; idx < NUM_USERS; idx++) {
+    for (; idx < NUM_USERS/4; idx++) {
         common_users[idx] = 0;
         ratings1[idx] = 0;
         ratings2[idx] = 0;
     }
 
-    cout << "rating : " << ratings1[0] << endl;
-
     return retval;
 }
+
+
+static inline void predict_qual(data_point * data, unsigned num_points) {
+
+    time_t timestamp;
+    struct tm * curr_time;
+    char filename[FILENAME_BUF_SIZE];
+
+    // Get the time
+    timestamp = time(0);
+    // Convert the time to a string
+    curr_time = localtime(&timestamp);
+
+    snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/knn_qual_%d_%d_%dh%dm_.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min);
+
+    ofstream qual_output (filename, ios::trunc);
+
+
+    for (int i = 0; i < num_points; i++) {
+
+        movie_type curr = data->movie;
+        get_neighbors(data->movie);
+        build_little_A_and_B(data->user);
+        find_weights();
+        float prediction = make_prediction(data, data->user);
+
+        while (data->movie == curr) {
+            data++;
+        }
+
+        float ret_val = (prediction > 5) ? 5 : prediction;
+        ret_val = (ret_val < 1) ? 1 : ret_val;
+
+        // Write it to the file
+        qual_output << ret_val << endl;
+    }
+}
+
+static inline void predict_probe(data_point * data, unsigned num_points) {
+
+    time_t timestamp;
+    struct tm * curr_time;
+    char filename[FILENAME_BUF_SIZE];
+
+    // Get the time
+    timestamp = time(0);
+    // Convert the time to a string
+    curr_time = localtime(&timestamp);
+
+    snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/knn_probe_%d_%d_%dh%dm_.out", curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min);
+
+    ofstream qual_output (filename, ios::trunc);
+
+
+    for (int i = 0; i < num_points; i++) {
+
+        movie_type curr = data->movie;
+        get_neighbors(data->movie);
+        build_little_A_and_B(data->user);
+        find_weights();
+        float prediction = make_prediction(data, data->user);
+
+        while (data->movie == curr) {
+            data++;
+        }
+
+        float ret_val = (prediction > 5) ? 5 : prediction;
+        ret_val = (ret_val < 1) ? 1 : ret_val;
+
+        cout << ret_val << endl;
+
+        // Write it to the file
+        qual_output << ret_val << endl;
+    }
+}
+
+static inline void get_neighbors(movie_type movie) {
+
+    float minimum = 0;
+    int min_idx = 0;
+
+    for (int i = 0; i < NUM_MOVIES; i++) {
+
+        if ((similarities[movie-1][i] != 0) && (movie != i+1)) {
+
+            if (similarities[movie-1][i] > minimum) {
+                neighbors[min_idx] = i;
+            }
+
+            for (int j = 0; j < K; j++) {
+                if (similarities[movie - 1][j] < minimum) {
+                    minimum = similarities[movie - 1][j];
+                    min_idx = j;
+                }
+            }
+
+        }
+    }
+
+    for (int i = 0; i < NUM_MOVIES; i++) {
+
+        if ((similarities[i][movie-1] != 0) && (movie != i+1)) {
+
+            if (similarities[i][movie-1] > minimum) {
+                neighbors[min_idx] = i;
+            }
+
+            for (int j = 0; j < K; j++) {
+                if (similarities[j][movie - 1] < minimum) {
+                    minimum = similarities[j][movie - 1];
+                    min_idx = j;
+                }
+            }
+
+        }
+    }
+}
+
+static inline void build_little_A_and_B(movie_type movie) {
+
+    for (int i = 0; i < K; i++) {
+
+        for (int j = 0; j < K; j++) {
+
+            littleA[i][j] = A[neighbors[i] - 1][neighbors[j] - 1];
+        }
+
+        B[i] = A[movie - 1][neighbors[i] - 1];
+    }
+
+}
+
+static inline void find_weights(void) {
+
+    float alpha;
+
+    do {
+
+        for (int i = 0; i < K; i++) {
+
+            float product = 0;
+
+            for (int j = 0; j < K; j++) {
+
+                product += A[i][j] * weights[j];
+            }
+
+            temp[i] = product - B[i];
+        }
+
+        for (int i = 0; i < K; i++) {
+
+            if ((weights[i] == 0) && temp[i] < 0) {
+
+                temp[i] = 0;
+            }
+        }
+
+        alpha = calc_alpha();
+
+        for (int i = 0; i < K; i++) {
+            if (temp[i] < 0) {
+                alpha = min(alpha, -1*(weights[i]/temp[i]));
+            }
+        }
+
+        for (int i = 0; i < K; i++) {
+
+            weights[i] += alpha * temp[i];
+        }
+
+    } while (temp_mag() > EPSILON);
+
+}
+
+static inline float temp_mag(void) {
+
+    float total = 0;
+
+    for (int i = 0; i < K; i++) {
+
+        total += temp[i]*temp[i];
+    }
+
+    return total / (float)K;
+}
+
+static inline float calc_alpha(void) {
+
+    float rTr = 0;
+    float rTAr = 0;
+
+    for (int i = 0; i < K; i++) {
+
+        for (int j = 0; j < K; j++) {
+
+            temp2[i] = temp[i] * A[i][j];
+        }
+        rTr += temp[i]*temp[i];
+    }
+
+    for (int i = 0; i < K; i++) {
+
+        rTAr += temp2[i] * temp[i];
+    }
+
+    return rTr / rTAr;
+}
+
+static inline float make_prediction(data_point * data, user_type user) {
+
+    float predict = 0;
+    gather_ratings(data, user);
+
+    for (int i = 0; i < K; i++) {
+
+        // temp is now the user's ratings on the neighboring movies
+        predict += weights[i] * temp[i];
+    }
+
+    return predict;
+}
+
+static inline void gather_ratings(data_point * data, user_type user) {
+
+    for (int i = 0; i < K; i++) {
+
+        while (data->user != user) {
+            data++;
+        }
+
+        if (data->user == user) {
+            temp[i] = data->rating;
+        }
+        else {
+            cout << "Uh oh I don't know how to deal with this issue" << endl;
+        }
+    }
+
+}
+
+
 /*
 // After calling this function, ranks should be populated.
 static inline void rank_movies(data_point * data, unsigned num_points) {
@@ -319,31 +600,3 @@ static inline void get_movie_avg(data_point * data, unsigned num_points) {
     }
 }
 */
-
-
-// Process:
-// Solve for similarity values with Spearman coefficient (for each pair of movies)
-// Find the nearest neighbors for each movie
-
-// Solve for A bar and b bar (for each pair of movies)
-// Find avg, which is just the average value of A bar (look in article for how to improve this)
-// Solve for A hat (using values of A bar matrix)
-// For every rating we want to predict
-    // Solve for b hat (using values from A hat matrix)
-    // Solve for weight vector using Figure 1 algorithm (using A hat and b hat)
-    // Solve for predictions using weight vector on nearest neighbors (using neighbors)
-
-
-
-// Algorithm:
-// For each pair of movies:
-//      Solve for similarity values
-//      Solve for A bar
-// For each movie:
-//      Find its nearest neighbors
-// Find avg
-// For each point in qual:
-//      Solve for A hat
-//      Solve for b hat
-//      Solve for weight vector
-//      Solve for prediction
