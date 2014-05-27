@@ -7,7 +7,7 @@
 
 using namespace std;
 
-#define NUM_EPOCHS 100
+#define NUM_EPOCHS 1
 #define NUM_FEATURES 30
 
 #define MOVIE_AVG 3.60861
@@ -48,11 +48,13 @@ int user_movies[MAX_MOVIES];
 // list of ratings for each of theose movies, filled out with zeros.
 rating_type user_movie_ratings[MAX_MOVIES];
 
+data_point * probe_data;
+
 static inline void initialize_bias_and_features(void);
 static inline void initialize_movie_count(data_point* data, unsigned num_points);
 static inline void initialize_user_movies(data_point* data);
-static inline data_point * get_curr_movies(data_point* data, user_type user);
-static inline data_point * get_qual_movies(data_point* data, unsigned num_points, user_type user);
+static inline data_point * get_curr_movies(data_point* data, data_point* probe_data, user_type user);
+static inline data_point * get_qual_movies(data_point* data, data_point * probe_data, unsigned num_points, user_type user);
 static inline float sum_implicit_y(int feature_idx);
 static inline float mult_feat_vec(user_type real_user, movie_type real_movie);
 static inline void predict_qual();
@@ -75,6 +77,8 @@ int main()
     data_train_start = get_data(TRAIN_UM);
     num_points = get_data_size(TRAIN_UM);
 
+    probe_data = get_data(PROBE_UM);
+
     cout << "Initalizing parameters..." << endl;
     // initialize parameters for the model
     initialize_bias_and_features();
@@ -92,7 +96,7 @@ int main()
         for (int j = 0; j < NUM_USERS; j++) {
 
             // get the movies rated by this user
-            data = get_curr_movies(data, data->user);
+            data = get_curr_movies(data, probe_data, data->user);
 
             // update the user features, and save them
             for (int k = 0; k < NUM_FEATURES; k++) {
@@ -143,7 +147,7 @@ int main()
     // Now predict on qual.
     cout << "Predicting data..." << endl;
     predict_qual();
-    predict_probe();
+    //predict_probe();
 
     return 0;
 
@@ -201,7 +205,7 @@ static inline void initialize_movie_count(data_point* data, unsigned num_points)
 // Put all movies rated by the current user into an array. Returns a pointer to
 // the current location in the dataset (will be the first rating by the next
 // user after this one).
-static inline data_point* get_curr_movies(data_point* data, user_type user)
+static inline data_point* get_curr_movies(data_point* data, data_point* probe_data, user_type user)
 {
     int i = 0;
     while (data->user == user) {
@@ -209,6 +213,13 @@ static inline data_point* get_curr_movies(data_point* data, user_type user)
         user_movie_ratings[i] = data->rating;
         i++;
         data++;
+    }
+
+    while (probe_data->user == user) {
+        user_movies[i] = probe_data->movie;
+        user_movie_ratings[i] = probe_data->rating;
+        i++;
+        probe_data++;
     }
     for (; i < MAX_MOVIES; i++) {
         user_movies[i] = 0;
@@ -221,13 +232,13 @@ static inline data_point* get_curr_movies(data_point* data, user_type user)
 
 // Get the movies rated by this user from qual. Different function than for training
 // because we start from the beginning of the dataset every time.
-static inline data_point* get_qual_movies(data_point* data, unsigned num_points, user_type user) {
+static inline data_point* get_qual_movies(data_point* data, data_point * probe_data, unsigned num_points, user_type user) {
 
     while (data->user < user) {
         data++;
     }
 
-    data = get_curr_movies(data, user);
+    data = get_curr_movies(data, probe_data, user);
     return data;
 }
 
@@ -274,6 +285,8 @@ static inline void predict_qual() {
     data_point * train_data = get_data(TRAIN_UM);
     unsigned num_points = get_data_size(TRAIN_UM);
 
+    data_point * probe_data = get_data(PROBE_UM);
+
     float prediction;
 
     time_t timestamp;
@@ -298,7 +311,7 @@ static inline void predict_qual() {
 
         if (curr_user != user) {
 
-            train_data = get_qual_movies(train_data, num_points, user);
+            train_data = get_qual_movies(train_data, probe_data, num_points, user);
         }
 
         curr_user = user;
@@ -321,6 +334,7 @@ static inline void predict_qual() {
     }
 }
 
+/*
 // Do the prediction for qual.
 static inline void predict_probe() {
 
@@ -376,6 +390,7 @@ static inline void predict_probe() {
         data++;
     }
 }
+*/
 
 // Do the prediction for qual.
 static inline void get_svd_rmse() {
@@ -385,6 +400,8 @@ static inline void get_svd_rmse() {
 
     data_point * train_data = get_data(TRAIN_UM);
     unsigned num_points = get_data_size(TRAIN_UM);
+
+    data_point * probe_data = get_data(PROBE_UM);
 
     float prediction, rmse, error;
 
@@ -399,7 +416,7 @@ static inline void get_svd_rmse() {
 
         if (curr_user != user) {
 
-            train_data = get_qual_movies(train_data, num_points, user);
+            train_data = get_qual_movies(train_data, probe_data, num_points, user);
         }
 
         curr_user = user;
