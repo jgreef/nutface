@@ -194,7 +194,6 @@ static inline void initialize_movie_count(data_point* data, unsigned num_points)
         movie_count[data->user - 1]++;
         data++;
     }
-
 }
 
 
