@@ -1,13 +1,14 @@
 #include <stdio.h>
 #include <iostream>
 #include <cmath>
+#include <time.h>
 #include <fstream>
 #include "data_types.h"
 #include "data_io.h"
 
 using namespace std;
 
-#define NUM_EPOCHS 1
+#define NUM_EPOCHS 150
 #define NUM_FEATURES 30
 
 #define MOVIE_AVG 3.60861
@@ -65,6 +66,7 @@ void init_bias_vectors(data_point* data, unsigned num_points);
 
 int main()
 {
+    time_t timestamp;
     data_point *data_train_start, *data;
     unsigned num_points;
 
@@ -84,6 +86,9 @@ int main()
     initialize_bias_and_features();
     init_bias_vectors(data_train_start, num_points);
     initialize_movie_count(data_train_start, num_points);
+
+    struct tm * curr_time;
+    char filename[FILENAME_BUF_SIZE];
 
     cout << "Training data..." << endl;
 
@@ -140,13 +145,15 @@ int main()
                 }
             }
         }
-
+        // get probe error (in-sample if also training on probe)
         get_svd_rmse();
+        // predict data
+        predict_qual();
     }
 
     // Now predict on qual.
-    cout << "Predicting data..." << endl;
-    predict_qual();
+    //cout << "Predicting data..." << endl;
+    //predict_qual();
     //predict_probe();
 
     return 0;
@@ -156,6 +163,8 @@ int main()
 
 // Initialize all biases, features, implicit y values to random values centered at 0
 static inline void initialize_bias_and_features(void) {
+
+
 
 /*
     // initialize user bias
@@ -168,6 +177,10 @@ static inline void initialize_bias_and_features(void) {
     }
 
 */
+
+    srand (static_cast <unsigned> (time(0)));
+
+
     // initialize movie feature vector
     for (int j = 0; j < NUM_MOVIES; j++)
     {
