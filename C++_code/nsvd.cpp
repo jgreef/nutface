@@ -148,7 +148,9 @@ int main()
         // get probe error (in-sample if also training on probe)
         get_svd_rmse();
         // predict data
-        predict_qual();
+        if (i % 5 == 0) {
+            predict_qual();
+        }
     }
 
     // Now predict on qual.
