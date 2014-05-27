@@ -23,7 +23,6 @@
 // #include <parallel/numeric>
 #include "data_types.h"
 #include "data_io.h"
-#include <stdlib.h>
 
 using namespace std;
 
@@ -48,19 +47,20 @@ using namespace std;
 // Constant for filename buffer size
 #define FILENAME_BUF_SIZE 512
 
-// Number of bins to bin the movie biases with
-#define MOVIE_BINS 30 
+// number of movie biases to use
+#define NUM_MOVIE_BINS 30
+#define MIN_MOVIE_TIME 63
+#define MAX_MOVIE_TIME 2243
 
 // Declare the feature vectors for SVD
 float movie_features[NUM_MOVIES][NUM_FEATURES];
 float user_features[NUM_USERS][NUM_FEATURES];
 float user_bias[NUM_USERS];
-float movie_bias[NUM_MOVIES];
-float movie_binary_features[NUM_MOVIES][NUM_FEATURES];
+float movie_bias[NUM_MOVIES][NUM_MOVIE_BINS];
 
 // Function declarations
-static inline void svd_train(user_type user, movie_type movie, rating_type rating, movie_linked_list * movie_list, float movie_list_length, float sqrt_movie_list_length);
-static inline float predict_rating(user_type user, movie_type movie);
+static inline void svd_train(user_type user, movie_type movie, rating_type rating, time_type timestamp);
+static inline float predict_rating(user_type user, movie_type movie, time_type timestamp);
 float get_svd_rmse(data_set_t dset);
 void get_qual(data_set_t dset, int epochs);
 void init_bias_vectors(data_point * train_start, unsigned train_points);
@@ -89,6 +89,32 @@ int main()
     // Get the size of the data
     data_train_points = get_data_size(TRAIN_MU);
 
+    data = data_train_start;
+    int num_movies = 0;
+    time_type min_time = 0xFF;
+    time_type max_time = 0x00;
+    movie_type curr_movie = 0xFFFF;
+
+    for (int i = 0; i < data_train_points; i++)
+    {
+    	if (data->movie != curr_movie)
+    	{
+    		curr_movie = data->movie;
+    		if (data->timestamp < min_time)
+    		{
+    			min_time = data->timestamp;
+    		}
+    		if (data->timestamp > max_time)
+    		{
+    			max_time = data->timestamp;
+    		}
+    		num_movies += 1;
+    	}
+    	data++;
+    }
+
+    cout << "found " << num_movies << " movies with min timestamp " << (int)min_time << " and max timestamp " << (int)max_time << endl; 
+
     init_bias_vectors(data_train_start, data_train_points);
 
 
@@ -98,7 +124,6 @@ int main()
 		for (k = 0; k < NUM_FEATURES; k++)
 		{
 			movie_features[j][k] = MIN_FEATURE_START + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(MAX_FEATURE_START-MIN_FEATURE_START)));
-			movie_binary_features[j][k] = MIN_FEATURE_START + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(MAX_FEATURE_START-MIN_FEATURE_START)));
 		}
 	}
 
@@ -131,13 +156,6 @@ int main()
 	{
 
 		epochs++;
-		user_type prev_user = 0xFFFF;
-		data_point * old_data;
-		movie_linked_list * list_head = NULL;
-		movie_linked_list * curr_movie = NULL;
-		movie_linked_list * prev_movie = NULL;
-		float movie_list_length = 0;
-		float sqrt_movie_list_length = 0;
 
 		// Initialize the timer
 		time(&begin_time);
@@ -146,61 +164,8 @@ int main()
 		data = data_train_start;
 		for (int i = 0; i < data_train_points; i++)
 		{
-			// If we have a new user
-			if (data->user != prev_user)
-			{
-				// Keep track of the data pointer
-				old_data = data;
-				// If this is the first time, we need to make the list head itself
-				if (list_head == NULL)
-				{
-					// Make the head of the linked list
-					list_head = (movie_linked_list *)malloc(sizeof(movie_linked_list));
-					list_head->next = NULL;
-				}
-
-				list_head->movie = data->movie;
-				// And assign the list head to previous value
-				prev_movie = list_head;
-				// Finally, increment the data pointer
-				prev_user = data->user;
-				data++;
-				movie_list_length = 1;
-
-				cout << "working on user " << data->user << endl; 
-
-				// we need to get all of the movies that the user has rated
-				while (data->user == prev_user)
-				{
-					// If we are using more movies than we have structure for in the list
-					if (prev_movie->next == NULL)
-					{
-						// Make a new movie and append it to the linked list
-						curr_movie = (movie_linked_list *)malloc(sizeof(movie_linked_list));
-						curr_movie->next = NULL;
-					}
-					// Append it to the linked list
-					prev_movie->next = curr_movie;
-					// Add the movie itself
-					curr_movie->movie = data->movie;
-					// update the data pointer
-					data++;
-					// Update the length of the movie list
-					movie_list_length += 1;
-				}
-
-				// Take the square root of the movie list length so we're not always doing it
-				sqrt_movie_list_length = pow(movie_list_length, (float)0.5);
-				// And put the data pointer back
-				data = old_data;
-
-			}
 			// Train
-			svd_train(data->user, data->movie, data->rating, list_head, movie_list_length, sqrt_movie_list_length);
-
-			// And updtae the previous user
-			prev_user = data->user;
-
+			svd_train(data->user, data->movie, data->rating, data->timestamp);
 			// Increment the pointer
 			data++;
 		}
@@ -265,18 +230,21 @@ int main()
 
 // This funciont is to be called on a point in the data set to train
 //	all of the features on one point
-static inline void svd_train(user_type user, movie_type movie, rating_type rating, movie_linked_list * movie_list, float movie_list_length, float sqrt_movie_list_length)
+static inline void svd_train(user_type user, movie_type movie, rating_type rating, time_type timestamp)
 {
 	float error, adjustment_term;
 	float temp_user, temp_movie;
     float temp_user_bias, temp_movie_bias;
-    movie_type list_movie;
+    int movie_bias_bin;
+
+    // Calculate the movie bias bin
+    movie_bias_bin = ((timestamp - MIN_MOVIE_TIME) * NUM_MOVIE_BINS)/(MAX_MOVIE_TIME - MIN_MOVIE_TIME + 1);
 
 	// Calculate the error
-	error = LEARNING_RATE*(rating - predict_rating(user, movie));
+	error = LEARNING_RATE*(rating - predict_rating(user, movie, timestamp));
     adjustment_term =  LEARNING_RATE*REGULARIZATION_RATE;
 
-	// Descend on each of the SVD features
+	// Descend on each of the features
 	for (int i = 0; i < NUM_FEATURES; i++)
 	{
 		// Adjust each of the features
@@ -288,26 +256,9 @@ static inline void svd_train(user_type user, movie_type movie, rating_type ratin
 		movie_features[movie - 1][i] += error*temp_user - adjustment_term*temp_movie;
 	}
 
-	// Descend on the SVD++ features
-	for (float j = 0; j < movie_list_length; j += 1.0)
-	{
-		// Get the movie
-		list_movie = movie_list->movie;
-		// Iterate over the features in the movie binary features vector
-		for (int i = 0; i < NUM_FEATURES; i++)
-		{
-			temp_user = movie_binary_features[list_movie-1][i];
-			temp_movie = movie_features[list_movie-1][i];
-
-			movie_binary_features[list_movie - 1][i] += (error*temp_movie/sqrt_movie_list_length) - adjustment_term*temp_user;
-			movie_features[list_movie - 1][i] += (error*temp_user/sqrt_movie_list_length) - adjustment_term*temp_movie;
-		}
-
-	}
-
 	// Descend on the user/movie biases
 	user_bias[user - 1] += error - adjustment_term*user_bias[user - 1];
-	movie_bias[movie - 1] += error - adjustment_term*movie_bias[movie - 1];
+	movie_bias[movie - 1][movie_bias_bin] += error - adjustment_term*movie_bias[movie - 1][movie_bias_bin];
 
     //temp_user_bias = user_bias[user - 1];
     //temp_movie_bias = movie_bias[movie - 1];
@@ -319,9 +270,13 @@ static inline void svd_train(user_type user, movie_type movie, rating_type ratin
 
 // this function will predict a rating for a user and movie by doing the inner
 //	product of the feature vectors
-static inline float predict_rating(user_type user, movie_type movie)
+static inline float predict_rating(user_type user, movie_type movie, time_type timestamp)
 {
 	float prediction = MOVIE_AVG;
+	int movie_bias_bin;
+
+	// Calculate the movie bias bin
+    movie_bias_bin = ((timestamp - MIN_MOVIE_TIME) * NUM_MOVIE_BINS)/(MAX_MOVIE_TIME - MIN_MOVIE_TIME + 1);
 
 	for (int j = 0; j < NUM_FEATURES; j++)
 	{
@@ -330,7 +285,7 @@ static inline float predict_rating(user_type user, movie_type movie)
 	}
 
 	// Add in the movie average and the movie and user biases
-	prediction += movie_bias[movie - 1] + user_bias[user - 1];
+	prediction += movie_bias[movie - 1][movie_bias_bin] + user_bias[user - 1];
 
 	float ret_val = (prediction > 5) ? 5 : prediction;
 	ret_val = (prediction < 1) ? 1 : ret_val;
@@ -360,7 +315,7 @@ float get_svd_rmse(data_set_t dset)
 	for (int i = 0; i < num_points; i++)
 	{
 		// Calculate the error
-		error = data->rating - predict_rating(data->user, data->movie);
+		error = data->rating - predict_rating(data->user, data->movie, data->timestamp);
 		rmse += error*error;
 		data++;
 	}
@@ -406,7 +361,7 @@ void get_qual(data_set_t dset, int epochs)
 	for(int i = 0; i < data_size; i++)
 	{
 		// Get the predicion
-		prediction = predict_rating(data->user, data->movie);
+		prediction = predict_rating(data->user, data->movie, data->timestamp);
 		// Write it to the file
 		qual_output << prediction << endl;
 		// Increment the pointer
@@ -456,9 +411,12 @@ void init_bias_vectors(data_point * train_start, unsigned train_points)
     // For each movie/user, calculate the bias. This is the average rating for
     // the movie/user (NOT the movie/users's average rating), minus the average
     // rating. Formulas found from the funny article (BetterMean).
-    for (int i = 0; i < NUM_MOVIES; i++) {
-
-        movie_bias[i] = ((MOVIE_AVG * BIAS_CONSTANT + movie_rating_sum[i])/(BIAS_CONSTANT + movie_num[i])) - MOVIE_AVG;
+    for (int i = 0; i < NUM_MOVIES; i++) 
+    {
+    	for (int j = 0; j < NUM_MOVIE_BINS; j++)
+    	{
+    		movie_bias[i][j] = ((MOVIE_AVG * BIAS_CONSTANT + movie_rating_sum[i])/(BIAS_CONSTANT + movie_num[i])) - MOVIE_AVG;
+    	}	
     }
 
     // For each user, calculate the user bias. This is the average rating for
