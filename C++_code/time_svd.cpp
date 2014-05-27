@@ -49,7 +49,7 @@ using namespace std;
 
 // number of movie biases to use
 #define NUM_MOVIE_BINS 30
-#define MIN_MOVIE_TIME 63
+#define MIN_MOVIE_TIME 1
 #define MAX_MOVIE_TIME 2243
 
 // Declare the feature vectors for SVD
@@ -349,7 +349,7 @@ void get_qual(data_set_t dset, int epochs)
 
 
 
-	snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/simple_svd_%d_%d_%d_%dh%dm__%d_features_epoch_%d.out", dset, curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES, epochs);
+	snprintf(filename, FILENAME_BUF_SIZE, "../../../data/solutions/time_svd_%d_%d_%d_%dh%dm__%d_features_epoch_%d.out", dset, curr_time->tm_mon, curr_time->tm_mday, curr_time->tm_hour, curr_time->tm_min, NUM_FEATURES, epochs);
 
 	ofstream qual_output (filename, ios::trunc);
 
